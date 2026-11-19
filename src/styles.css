@@ -156,10 +156,34 @@ em {
 
 .app-scroll .screen {
   min-height: 100dvh;
+  /* Grow with the content instead of squeezing it, so tall forms scroll rather than overlap. */
+  flex-shrink: 0;
+}
+
+.landing > * {
+  flex-shrink: 0;
 }
 
 .landing.is-form .lede {
   display: none;
+}
+
+/* While a form is open, the hero steps back so the fields fit on a phone without scrolling. */
+.landing .title-num,
+.landing .title-words {
+  transition: font-size 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.landing.is-form .title-num {
+  font-size: clamp(72px, 20vw, 120px);
+}
+
+.landing.is-form .title-words {
+  font-size: clamp(28px, 7.6vw, 44px);
+}
+
+.landing.is-form .landing-hero {
+  gap: 8px;
 }
 
 .stage {
