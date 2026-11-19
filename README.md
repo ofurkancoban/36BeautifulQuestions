@@ -2,6 +2,8 @@
 
 A candlelit, real-time ritual for two, built on the famous "36 questions" from the 1997 closeness study by Arthur Aron and colleagues.
 
+**Play it here: [ofurkancoban.github.io/36BeautifulQuestions](https://ofurkancoban.github.io/36BeautifulQuestions/)**
+
 Two people open the app on their own phones, pair with a six-letter invitation, and take turns holding a card. Every screen stays in sync: whose turn it is, when the card turns over, who has answered, the set clock, and the little gestures you send each other.
 
 ## The idea
