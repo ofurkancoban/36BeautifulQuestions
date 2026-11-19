@@ -156,10 +156,48 @@ export function stopAmbient() {
   pad = null;
 }
 
+// iOS Safari has no Vibration API. Since iOS 18, toggling a native <input type="checkbox" switch>
+// plays a system haptic tick, so a hidden switch stands in for vibration there.
+let hapticLabel: HTMLLabelElement | null = null;
+
+function iosTick() {
+  if (!hapticLabel) {
+    const label = document.createElement('label');
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.setAttribute('switch', '');
+    input.tabIndex = -1;
+    input.setAttribute('aria-hidden', 'true');
+    label.setAttribute('aria-hidden', 'true');
+    label.style.display = 'none';
+    label.appendChild(input);
+    document.body.appendChild(label);
+    hapticLabel = label;
+  }
+  hapticLabel.click();
+}
+
+/**
+ * Vibrates where the Vibration API exists, and plays haptic ticks on iOS otherwise.
+ * A pattern becomes one tick per vibration segment, spaced like the original pattern.
+ */
 export function vibrate(pattern: number | number[]) {
   try {
-    navigator.vibrate?.(pattern);
+    if (typeof navigator.vibrate === 'function') {
+      navigator.vibrate(pattern);
+      return;
+    }
+    if (typeof document === 'undefined' || !('ontouchend' in document)) return;
+    const segments = Array.isArray(pattern) ? pattern : [pattern];
+    let at = 0;
+    segments.forEach((ms, i) => {
+      if (i % 2 === 0) {
+        if (at === 0) iosTick();
+        else window.setTimeout(iosTick, at);
+      }
+      at += ms;
+    });
   } catch {
-    /* unsupported */
+    /* haptics unavailable */
   }
 }

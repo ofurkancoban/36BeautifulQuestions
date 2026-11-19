@@ -27,7 +27,7 @@ The app follows the original procedure:
 - Three moods that shift the living background shader: *Dusk*, *Twilight*, *Midnight*
 - Breathing interludes between sets, a synced four minute timer for "tell your life story" (question 11)
 - Reactions (heart, spark, laugh, tear) that float onto your partner's screen
-- A shared **hold**: press the heart together and both screens glow and beat as one (with haptics on supported phones)
+- A shared **hold**: press the heart together and both screens glow and beat as one (with haptics on Android, and on iPhone with iOS 18 or later)
 - **Private notes** on any question, kept only on your device and downloadable as text at the end
 - **The question that stays with you**: each partner picks one at the end; over the network your partner's pick is revealed only after you choose
 - A downloadable keepsake card with your names, the date and your chosen questions
