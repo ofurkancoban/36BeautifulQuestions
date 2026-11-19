@@ -4,6 +4,7 @@ import { useGame } from '../net/context';
 import { inviteLink } from '../net/session';
 import { Button, Flourish, Reveal, ease } from '../components/ui';
 import ReadyBar from '../components/ReadyBar';
+import { setSeating, useSeating, type Seating } from '../lib/seating';
 import { sfx } from '../lib/sound';
 import type { Role } from '../net/game';
 
@@ -121,6 +122,7 @@ export default function Lobby() {
   const partner = state.players[session.role === 'host' ? 'guest' : 'host'];
   const linked = !!guest && snap.partnerOnline;
   const [flipping, setFlipping] = useState(false);
+  const seating = useSeating();
 
   useEffect(() => {
     if (linked) sfx.chord();
@@ -213,6 +215,24 @@ export default function Lobby() {
                   )}
                 </button>
               </div>
+              {session.kind === 'local' && (
+                <div className="setting">
+                  <span className="setting-label">How you sit</span>
+                  <Segmented<Seating>
+                    value={seating}
+                    onChange={setSeating}
+                    options={[
+                      { v: 'across', label: 'Across the table' },
+                      { v: 'side', label: 'Side by side' },
+                    ]}
+                  />
+                  <span className="setting-note">
+                    {seating === 'across'
+                      ? `Lay the phone facing ${state.players.host.name}. On ${guest?.name ?? 'their'}\u2019s turns the card turns around.`
+                      : 'The card always faces the same way.'}
+                  </span>
+                </div>
+              )}
             </Reveal>
 
             <Reveal delay={0.8}>

@@ -1414,6 +1414,11 @@ em {
   }
 }
 
+.card-turn {
+  width: 100%;
+  transform-style: preserve-3d;
+}
+
 .card {
   position: relative;
   width: 100%;
