@@ -89,7 +89,7 @@ export default function Landing({ onStart, inviteCode, error }: Props) {
         </Reveal>
         <h1 className="title">
           <span className="title-num">
-            <LetterRise text="36" delay={0.25} />
+            <LetterRise text="36" delay={0.25} charClassName="gold-char" />
           </span>
           <span className="title-words">
             <LetterRise text="Beautiful Questions" delay={0.5} />

@@ -143,7 +143,11 @@ export function Reveal({ children, delay = 0, className = '', y = 14 }: { childr
 }
 
 /** Splits text into letters that rise in one after another. */
-export function LetterRise({ text, delay = 0, className = '' }: { text: string; delay?: number; className?: string }) {
+/**
+ * Letters that rise and sharpen one by one. `charClassName` wraps each glyph in an inner span, so gradient text
+ * (background-clip: text) never sits on the same element as the animated blur filter: Safari draws nothing there.
+ */
+export function LetterRise({ text, delay = 0, className = '', charClassName }: { text: string; delay?: number; className?: string; charClassName?: string }) {
   return (
     <span className={className} aria-label={text}>
       {Array.from(text).map((ch, i) => (
@@ -155,7 +159,7 @@ export function LetterRise({ text, delay = 0, className = '' }: { text: string; 
           animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
           transition={{ duration: 1.1, delay: delay + i * 0.045, ease }}
         >
-          {ch}
+          {charClassName ? <span className={charClassName}>{ch}</span> : ch}
         </motion.span>
       ))}
     </span>

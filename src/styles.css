@@ -413,18 +413,20 @@ em {
   font-weight: 300;
   font-size: clamp(110px, 32vw, 190px);
   letter-spacing: -0.03em;
-  background: linear-gradient(175deg, #fff6e6 10%, var(--gold-soft) 40%, var(--gold) 70%, var(--gold-deep) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--gold-soft);
   filter: drop-shadow(0 6px 40px rgba(227, 182, 124, 0.35));
   padding: 0 0.05em;
 }
 
-.title-num > span > span {
-  background: inherit;
+/* The gradient lives on an inner span with no filter of its own (WebKit skips gradient text on filtered elements). */
+.gold-char {
+  display: inline-block;
+  padding: 0 0.02em;
+  background: linear-gradient(175deg, #fff6e6 10%, var(--gold-soft) 40%, var(--gold) 70%, var(--gold-deep) 100%);
   -webkit-background-clip: text;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
 }
 
 .title-words {
@@ -910,14 +912,17 @@ em {
 
 .invite-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   width: 100%;
   justify-content: center;
 }
 
+/* Labels never break; when a translation is too long the buttons stack instead. */
 .invite-actions .btn {
   min-width: 0;
-  flex: 1;
+  flex: 1 1 auto;
+  white-space: nowrap;
   padding: 12px 14px;
   min-height: 44px;
   font-size: 11.5px;
