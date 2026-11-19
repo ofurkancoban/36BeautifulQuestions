@@ -6,6 +6,7 @@ import { clientId, loadSaved, makeCode, normalizeCode, type SavedSession } from 
 import { cleanName } from '../net/validate';
 import { useT } from '../i18n';
 import { LangButton } from '../components/LangPicker';
+import { usePresence } from '../lib/presence';
 import type { ErrorCode } from '../net/session';
 
 interface Props {
@@ -274,6 +275,7 @@ export default function Landing({ onStart, inviteCode, error }: Props) {
       </div>
 
       <footer className="landing-foot">
+        <PresenceLine />
         <Reveal delay={2.2}>
           <span>{L.footer}</span>
         </Reveal>
@@ -283,6 +285,26 @@ export default function Landing({ onStart, inviteCode, error }: Props) {
         <HowItWorks />
       </Sheet>
     </main>
+  );
+}
+
+/** Live visitor counts, shown only once the counter service has answered. */
+function PresenceLine() {
+  const { active, total } = usePresence();
+  const m = useT();
+  if (active === null && total === null) return null;
+  const num = new Intl.NumberFormat(m.meta.locale);
+  return (
+    <motion.p className="presence-line" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1.2 }}>
+      {active !== null && (
+        <span className="presence-now">
+          <span className="presence-now-dot" aria-hidden />
+          {m.landing.activeNow(active, num.format(active))}
+        </span>
+      )}
+      {active !== null && total !== null && <span className="presence-sep" aria-hidden>{'\u00b7'}</span>}
+      {total !== null && <span>{m.landing.visitors(total, num.format(total))}</span>}
+    </motion.p>
   );
 }
 

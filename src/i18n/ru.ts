@@ -55,6 +55,8 @@ const ru: Messages = {
     localSecond: 'Второй человек',
     localBegin: 'Начать на этом телефоне',
     footer: 'По Aron, Melinat, Aron, Vallone & Bator, 1997',
+    activeNow: (n, f) => `Сейчас здесь: ${f} ${plural(n, 'человек', 'человека', 'человек')}`,
+    visitors: (n, f) => `Уже побывали: ${f} ${plural(n, 'человек', 'человека', 'человек')}`,
   },
 
   session: {

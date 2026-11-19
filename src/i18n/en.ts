@@ -55,6 +55,8 @@ const en = {
     localSecond: 'Second person',
     localBegin: 'Begin on this phone',
     footer: 'After Aron, Melinat, Aron, Vallone & Bator, 1997',
+    activeNow: (n: number, f: string) => `${f} ${n === 1 ? 'person' : 'people'} here right now`,
+    visitors: (n: number, f: string) => `${f} ${n === 1 ? 'person has' : 'people have'} visited`,
   },
 
   session: {

@@ -44,6 +44,8 @@ const nl: Messages = {
     localSecond: 'Tweede persoon',
     localBegin: 'Begin op deze telefoon',
     footer: 'Naar Aron, Melinat, Aron, Vallone & Bator, 1997',
+    activeNow: (n, f) => `${f} ${n === 1 ? 'persoon' : 'mensen'} nu hier`,
+    visitors: (n, f) => `${f} ${n === 1 ? 'persoon is' : 'mensen zijn'} langs geweest`,
   },
 
   session: {

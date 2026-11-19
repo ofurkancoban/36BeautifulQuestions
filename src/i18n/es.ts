@@ -44,6 +44,8 @@ const es: Messages = {
     localSecond: 'Segunda persona',
     localBegin: 'Empezar en este teléfono',
     footer: 'Según Aron, Melinat, Aron, Vallone y Bator, 1997',
+    activeNow: (n, f) => `${f} ${n === 1 ? 'persona' : 'personas'} aquí ahora`,
+    visitors: (n, f) => `${f} ${n === 1 ? 'persona ha pasado' : 'personas han pasado'}`,
   },
 
   session: {

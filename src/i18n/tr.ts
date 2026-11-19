@@ -47,6 +47,8 @@ const tr: Messages = {
     localSecond: 'İkinci kişi',
     localBegin: 'Bu telefonda başla',
     footer: 'Aron, Melinat, Aron, Vallone ve Bator, 1997 çalışmasından',
+    activeNow: (_n, f) => `Şu an ${f} kişi burada`,
+    visitors: (_n, f) => `${f} kişi ziyaret etti`,
   },
 
   session: {

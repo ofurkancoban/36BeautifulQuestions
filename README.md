@@ -4,6 +4,10 @@ A candlelit, real-time ritual for two, built on the famous "36 questions" from t
 
 **Play it here: [ofurkancoban.github.io/36BeautifulQuestions](https://ofurkancoban.github.io/36BeautifulQuestions/)**
 
+[![Unique visitors](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fabacus.jasoncameron.dev%2Fget%2F36beautifulquestions%2Fusers&query=%24.value&label=unique%20visitors&color=b5835a&cacheSeconds=600)](https://ofurkancoban.github.io/36BeautifulQuestions/)
+
+The number of people on the site right now is shown live at the bottom of the home page.
+
 Two people open the app on their own phones, pair with a six-letter invitation, and take turns holding a card. Every screen stays in sync: whose turn it is, when the card turns over, who has answered, the set clock, and the little gestures you send each other.
 
 ## The idea
@@ -33,6 +37,7 @@ The app follows the original procedure:
 - A downloadable keepsake card with your names, the date and your chosen questions
 - The screen stays awake during the ritual (Wake Lock API), so a phone lying on the table does not lock
 - Installable as an app (PWA) with an offline-capable service worker
+- An anonymous visitor counter: how many people are here right now and how many have ever visited (counts only, through the free [Abacus](https://jasoncameron.dev/abacus/) counter API; skipped in development and automated tests)
 - Synthesized bell cues and an optional ambient pad, no audio files
 - Survives refreshes and short disconnects; if the host loses their saved game, the guest's copy restores it
 
