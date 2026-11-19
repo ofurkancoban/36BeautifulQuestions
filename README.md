@@ -20,6 +20,7 @@ The app follows the original procedure:
 ## Features
 
 - Pair with a code, a link or a QR code, then play together in the same room or over a video call
+- **Eight languages**: English, Türkçe, Deutsch, Nederlands, Français, Italiano, Español and Русский. Change it any time, even in the middle of the ritual; each partner can play in their own language because the screens sync by question, not by text
 - **One-phone mode**: pass a single phone back and forth, no connection needed (works offline once installed); sitting across a table, the whole screen turns to face whoever holds the card
 - Live turn indicator, a 3D card flip that both screens see together, answer status for both partners
 - A three second **undo** after "I've answered", for accidental taps
@@ -44,6 +45,10 @@ The app is fully static, so it runs on GitHub Pages. Real-time sync uses WebRTC 
 - The guest keeps a copy of the latest state and offers it when reconnecting, so the ritual survives even if the host's browser storage is lost.
 - Every message from the other device is validated before it is used (`src/net/validate.ts`).
 - PeerJS's free public broker is used only for the initial handshake (plus its public STUN/TURN servers for difficult networks). Answers are spoken aloud, so nothing personal is ever transmitted or stored. Private notes never leave the device.
+
+## Languages
+
+All text, including the 36 questions, lives in `src/i18n/<lang>.ts`. English (`en.ts`) defines the shape; every other language is type-checked against it, and `tests/i18n.test.ts` checks that each one has all 36 questions, the same hints and no missing strings. To add a language, copy `en.ts`, translate it and register it in `src/i18n/index.ts`. The first visit picks the browser's language when it is supported, then remembers the choice.
 
 ## Run locally
 

@@ -2,7 +2,9 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { useGame, useNow } from '../net/context';
 import { askerFor, other, SET_MS, type Role } from '../net/game';
-import { PER_SET, QUESTIONS, SETS, roman, setOf } from '../data/questions';
+import { PER_SET, roman, setIndex } from '../data/questions';
+import { useContent } from '../i18n/useContent';
+import { useT } from '../i18n';
 import QuestionCard from '../components/QuestionCard';
 import ReadyBar from '../components/ReadyBar';
 import { Button, CheckIcon, Flourish, LetterRise, PenIcon, Reveal, ease } from '../components/ui';
@@ -14,25 +16,21 @@ import { sfx, vibrate } from '../lib/sound';
 // Prelude: the three rules of the ritual
 // ---------------------------------------------------------------------------
 
-const RULES = [
-  { n: 'I', title: 'Take turns holding the card', body: 'Whoever holds it turns it over, reads it aloud, and answers first.' },
-  { n: 'II', title: 'Both of you answer', body: 'Every question, every time. Closeness grows from giving and receiving in turn.' },
-  { n: 'III', title: 'Be honest, be gentle', body: 'There are no wrong answers. Listen fully. Pause when you need to.' },
-];
-
 export function Prelude() {
+  const m = useT();
+  const P = m.prelude;
   return (
     <main className="screen prelude">
       <Reveal>
-        <span className="eyebrow">Before you begin</span>
+        <span className="eyebrow">{P.eyebrow}</span>
       </Reveal>
       <Reveal delay={0.15}>
-        <h2 className="display-md">Three small promises</h2>
+        <h2 className="display-md">{P.title}</h2>
       </Reveal>
       <div className="rules">
-        {RULES.map((r, i) => (
-          <Reveal key={r.n} delay={0.4 + i * 0.25} className="rule">
-            <span className="rule-num">{r.n}</span>
+        {P.rules.map((r, i) => (
+          <Reveal key={i} delay={0.4 + i * 0.25} className="rule">
+            <span className="rule-num">{roman(i + 1)}</span>
             <div>
               <h3>{r.title}</h3>
               <p>{r.body}</p>
@@ -41,7 +39,7 @@ export function Prelude() {
         ))}
       </div>
       <Reveal delay={1.3}>
-        <ReadyBar label="I promise" localLabel="We promise" />
+        <ReadyBar label={P.promise} localLabel={P.promiseLocal} />
       </Reveal>
     </main>
   );
@@ -53,20 +51,21 @@ export function Prelude() {
 
 export function SetIntro() {
   const { session, state } = useGame();
-  const set = setOf(state.q);
+  const { m, sets } = useContent();
+  const set = sets[setIndex(state.q)];
   useEffect(() => {
     sfx.chord();
   }, [set.id]);
   return (
     <main className="screen set-intro" key={set.id}>
       <Reveal>
-        <span className="eyebrow">Set {set.numeral} of III</span>
+        <span className="eyebrow">{m.setIntro.of(set.numeral)}</span>
       </Reveal>
       <div className="set-numeral" aria-hidden>
         <LetterRise text={set.numeral} delay={0.2} />
       </div>
       <h2 className="set-name">
-        <LetterRise text={set.name} delay={0.7} />
+        <LetterRise key={set.name} text={set.name} delay={0.7} />
       </h2>
       <Reveal delay={1.3}>
         <p className="set-tagline">{set.tagline}</p>
@@ -79,11 +78,11 @@ export function SetIntro() {
       </Reveal>
       {state.pacing === 'classic' && (
         <Reveal delay={1.85}>
-          <p className="muted small center">About fifteen minutes. The clock starts with the first card.</p>
+          <p className="muted small center">{m.setIntro.classicNote}</p>
         </Reveal>
       )}
       <Reveal delay={2}>
-        <Button onClick={() => session.dispatch({ type: 'openSet' })}>Draw the first card</Button>
+        <Button onClick={() => session.dispatch({ type: 'openSet' })}>{m.setIntro.draw}</Button>
       </Reveal>
     </main>
   );
@@ -99,9 +98,10 @@ function fmt(ms: number) {
 }
 
 function Progress({ q, skipped }: { q: number; skipped: number[] }) {
+  const { m, sets } = useContent();
   return (
-    <div className="progress" aria-label={`Question ${q + 1} of 36`}>
-      {SETS.map((set) => (
+    <div className="progress" aria-label={m.question.progressAria(q + 1)}>
+      {sets.map((set) => (
         <div key={set.id} className="progress-set">
           {Array.from({ length: PER_SET }, (_, i) => {
             const idx = (set.id - 1) * PER_SET + i;
@@ -139,7 +139,7 @@ function TurnLine({ left, right, activeLeft }: { left: string; right: string; ac
 }
 
 function SpeakerChip({ name, state }: { name: string; state: 'waiting' | 'speaking' | 'listening' | 'done' }) {
-  const label = { waiting: 'waiting', speaking: 'speaking', listening: 'listening', done: 'answered' }[state];
+  const label = useT().question.chip[state];
   return (
     <div className={`chip chip-${state}`}>
       <span className="chip-dot">{state === 'done' ? <CheckIcon size={10} /> : null}</span>
@@ -150,7 +150,7 @@ function SpeakerChip({ name, state }: { name: string; state: 'waiting' | 'speaki
 }
 
 function MiniTimer({ endsAt, seconds }: { endsAt: number | null; seconds: number }) {
-  const { session } = useGame();
+  const { session, m } = useGame();
   const now = useNow(250);
   const left = endsAt ? endsAt - now : seconds * 1000;
   const done = endsAt !== null && left <= 0;
@@ -165,23 +165,22 @@ function MiniTimer({ endsAt, seconds }: { endsAt: number | null; seconds: number
   }, [done, endsAt]);
   return (
     <div className="mini-timer">
-      <span className={`mini-timer-time ${done ? 'is-done' : ''}`}>{done ? 'Time' : fmt(left)}</span>
+      <span className={`mini-timer-time ${done ? 'is-done' : ''}`}>{done ? m.question.timeShort : fmt(left)}</span>
       <button className="link" onClick={() => session.dispatch({ type: 'miniTimer', seconds: endsAt ? null : seconds })}>
-        {endsAt ? 'Reset timer' : 'Start four minutes'}
+        {endsAt ? m.question.timerReset : m.question.timerStart}
       </button>
     </div>
   );
 }
 
 function SetClock({ startedAt }: { startedAt: number }) {
-  const { session, state } = useGame();
+  const { session, state, m } = useGame();
   const now = useNow(1000);
   const left = startedAt + SET_MS - now;
-  const set = setOf(state.q);
-  const last = set.id === 3;
+  const last = setIndex(state.q) === 2;
   return (
     <>
-      <span className={`set-clock ${left <= 60000 ? 'is-low' : ''}`}>{left > 0 ? fmt(left) : 'Time'}</span>
+      <span className={`set-clock ${left <= 60000 ? 'is-low' : ''}`}>{left > 0 ? fmt(left) : m.question.timeShort}</span>
       <AnimatePresence>
         {left <= 0 && (
           <motion.div
@@ -191,9 +190,9 @@ function SetClock({ startedAt }: { startedAt: number }) {
             exit={{ opacity: 0, y: -16 }}
             transition={{ duration: 0.6, ease }}
           >
-            <span>Fifteen minutes have passed. In the study, this is where you would move on.</span>
+            <span>{m.question.timeUp}</span>
             <button className="link" onClick={() => session.dispatch({ type: 'nextSet' })}>
-              {last ? 'Go to the closing' : `Move to Set ${roman(set.id + 1)}`}
+              {last ? m.question.goClosing : m.question.moveToSet(roman(setIndex(state.q) + 2))}
             </button>
           </motion.div>
         )}
@@ -205,23 +204,23 @@ function SetClock({ startedAt }: { startedAt: number }) {
 const UNDO_MS = 3000;
 
 function NoteSheet({ open, onClose, q, value, onChange, partner }: { open: boolean; onClose: () => void; q: number; value: string; onChange: (v: string) => void; partner: string | null }) {
+  const { m, questions } = useContent();
   return (
-    <Sheet open={open} onClose={onClose} title="A private note">
+    <Sheet open={open} onClose={onClose} title={m.question.noteTitle}>
       <div className="note-sheet">
         <p className="note-question">
-          <span className="mono">No. {roman(q + 1)}</span> {QUESTIONS[q].text}
+          <span className="mono">{m.question.no} {roman(q + 1)}</span> {questions[q].text}
         </p>
         <textarea
           className="note-input"
           value={value}
           autoFocus
           maxLength={4000}
-          placeholder="What do you want to remember about this moment?"
+          placeholder={m.question.notePlaceholder}
           onChange={(e) => onChange(e.target.value)}
         />
         <p className="muted small">
-          {partner ? `Kept only on this device. Never sent to ${partner}.` : 'Kept only on this phone. Never sent anywhere.'} You can read
-          all your notes at the end.
+          {m.question.notePrivacy(partner)} {m.question.noteLater}
         </p>
       </div>
     </Sheet>
@@ -230,15 +229,17 @@ function NoteSheet({ open, onClose, q, value, onChange, partner }: { open: boole
 
 export function QuestionScreen() {
   const { session, state, me, theirName, local, label } = useGame();
-  const question = QUESTIONS[state.q];
-  const set = setOf(state.q);
+  const { m, questions, sets } = useContent();
+  const Q = m.question;
+  const question = questions[state.q];
+  const set = sets[setIndex(state.q)];
   const asker = askerFor(state);
   const listener = other(asker);
   const askerIsMe = asker === me;
   const askerDone = state.answered[asker];
   const myDone = state.answered[me];
-  const askerName = state.players[asker]?.name ?? 'Partner';
-  const listenerName = state.players[listener]?.name ?? 'Partner';
+  const askerName = state.players[asker]?.name ?? m.common.partner;
+  const listenerName = state.players[listener]?.name ?? m.common.partner;
   const { notes, setNote } = useNotes(state.code);
   const [noteOpen, setNoteOpen] = useState(false);
 
@@ -287,32 +288,32 @@ export function QuestionScreen() {
   let action: { label: string; onClick?: () => void; disabled?: boolean } | null = null;
   if (local) {
     if (!state.revealed) {
-      instruction = `${askerName} holds the card.`;
-      action = { label: 'Turn the card over', onClick: () => session.dispatch({ type: 'reveal' }) };
+      instruction = Q.holds(askerName);
+      action = { label: Q.turnOver, onClick: () => session.dispatch({ type: 'reveal' }) };
     } else if (!askerDone) {
-      instruction = `${askerName}, read it aloud and answer first.`;
-      action = { label: `${askerName} has answered`, onClick: answer };
+      instruction = Q.localRead(askerName);
+      action = { label: Q.localAnswered(askerName), onClick: answer };
     } else {
-      instruction = `${listenerName}, your turn to answer.`;
-      action = { label: `${listenerName} has answered`, onClick: answer };
+      instruction = Q.localYourTurn(listenerName);
+      action = { label: Q.localAnswered(listenerName), onClick: answer };
     }
   } else if (!state.revealed) {
-    instruction = askerIsMe ? 'You hold the card.' : `${theirName} holds the card.`;
-    action = askerIsMe ? { label: 'Turn the card over', onClick: () => session.dispatch({ type: 'reveal' }) } : null;
+    instruction = askerIsMe ? Q.youHold : Q.holds(theirName);
+    action = askerIsMe ? { label: Q.turnOver, onClick: () => session.dispatch({ type: 'reveal' }) } : null;
   } else if (askerIsMe) {
     if (!myDone) {
-      instruction = 'Read it aloud, then answer first.';
-      action = { label: 'I’ve answered', onClick: answer };
+      instruction = Q.readFirst;
+      action = { label: Q.answered, onClick: answer };
     } else {
-      instruction = `Now listen to ${theirName}.`;
-      action = { label: `${theirName} is answering`, disabled: true };
+      instruction = Q.listenTo(theirName);
+      action = { label: Q.isAnswering(theirName), disabled: true };
     }
   } else if (!askerDone) {
-    instruction = `Listen as ${theirName} answers first.`;
-    action = { label: 'Your turn comes next', disabled: true };
+    instruction = Q.listenFirst(theirName);
+    action = { label: Q.turnNext, disabled: true };
   } else {
-    instruction = 'Your turn to answer.';
-    action = { label: 'I’ve answered', onClick: answer };
+    instruction = Q.yourTurn;
+    action = { label: Q.answered, onClick: answer };
   }
 
   const leftRole: Role = session.role;
@@ -323,15 +324,15 @@ export function QuestionScreen() {
       <div className="q-top">
         <div className="q-set">
           <span className="q-set-name">
-            Set {set.numeral} · <em>{set.name}</em>
+            {Q.set} {set.numeral} · <em>{set.name}</em>
           </span>
           <span className="q-count">
-            {question.n} <span className="muted">of 36</span>
+            {question.n} <span className="muted">{Q.of}</span>
             <button
               className={`note-btn ${hasNote ? 'has-note' : ''}`}
               onClick={() => setNoteOpen(true)}
-              aria-label={hasNote ? 'Edit your private note' : 'Write a private note'}
-              title="Private note"
+              aria-label={hasNote ? Q.noteEdit : Q.noteWrite}
+              title={Q.noteTitle}
             >
               <PenIcon />
             </button>
@@ -354,7 +355,9 @@ export function QuestionScreen() {
             revealed={state.revealed}
             canReveal={askerIsMe || local}
             onReveal={() => session.dispatch({ type: 'reveal' })}
-            waitingLabel={`${askerName} is about to turn the card`}
+            waitingLabel={Q.aboutToTurn(askerName)}
+            setName={set.name}
+            labels={{ set: Q.set, no: Q.no, reveal: Q.revealAria }}
           />
         </AnimatePresence>
       </div>
@@ -377,7 +380,7 @@ export function QuestionScreen() {
         {isPending ? (
           <Button variant="ghost" className="btn-undo" onClick={() => setPending(null)} key={`undo-${state.q}`}>
             <span className="btn-undo-fill" style={{ animationDuration: `${UNDO_MS}ms` }} />
-            <span className="btn-undo-text">Undo</span>
+            <span className="btn-undo-text">{Q.undo}</span>
           </Button>
         ) : (
           action && (
@@ -410,15 +413,16 @@ export function QuestionScreen() {
 
 export function Interlude() {
   const { state } = useGame();
-  const done = SETS[Math.floor(state.q / PER_SET) - 1];
-  const next = setOf(state.q);
+  const { m, sets } = useContent();
+  const done = sets[Math.floor(state.q / PER_SET) - 1];
+  const next = sets[setIndex(state.q)];
   return (
     <main className="screen interlude">
       <Reveal>
-        <span className="eyebrow">Set {done.numeral} · {done.name}</span>
+        <span className="eyebrow">{m.question.set} {done.numeral} · {done.name}</span>
       </Reveal>
       <Reveal delay={0.2}>
-        <h2 className="display-md">Twelve questions, held.</h2>
+        <h2 className="display-md">{m.interlude.held}</h2>
       </Reveal>
       <Reveal delay={0.5}>
         <div className="breath" aria-hidden>
@@ -437,12 +441,11 @@ export function Interlude() {
       </Reveal>
       <Reveal delay={0.8}>
         <p className="muted center narrow">
-          Take a few slow breaths together. When you are both ready, the next set waits: <em>{next.name}</em>,{' '}
-          {next.tagline.toLowerCase()}.
+          {m.interlude.breathe(next.name, next.tagline)}
         </p>
       </Reveal>
       <Reveal delay={1}>
-        <ReadyBar label={`Continue to Set ${next.numeral}`} localLabel={`Continue to Set ${next.numeral}`} />
+        <ReadyBar label={m.interlude.continueTo(next.numeral)} localLabel={m.interlude.continueTo(next.numeral)} />
       </Reveal>
     </main>
   );
@@ -450,8 +453,9 @@ export function Interlude() {
 
 function BreathWord() {
   const now = useNow(250);
+  const b = useT().interlude.breath;
   const phase = (now / 1000) % 12;
-  const word = phase < 4 ? 'breathe in' : phase < 5.4 ? 'hold' : phase < 10.2 ? 'breathe out' : 'rest';
+  const word = phase < 4 ? b.in : phase < 5.4 ? b.hold : phase < 10.2 ? b.out : b.rest;
   return (
     <AnimatePresence mode="wait">
       <motion.span key={word} className="breath-word" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.6 }}>
@@ -466,7 +470,8 @@ function BreathWord() {
 // ---------------------------------------------------------------------------
 
 export function Gaze() {
-  const { session, state, theirName, local } = useGame();
+  const { session, state, theirName, local, m } = useGame();
+  const G = m.gaze;
   const now = useNow(200);
   const startedAt = state.gazeStartedAt;
   const total = 240_000;
@@ -492,29 +497,23 @@ export function Gaze() {
     return (
       <main className="screen gaze">
         <Reveal>
-          <span className="eyebrow">Thirty-six questions, answered</span>
+          <span className="eyebrow">{G.eyebrow}</span>
         </Reveal>
         <Reveal delay={0.2}>
-          <h2 className="display-md">One last thing, without words</h2>
+          <h2 className="display-md">{G.title}</h2>
         </Reveal>
         <Reveal delay={0.45}>
-          <p className="center narrow lede-sm">
-            Put the phones down, face up. Look into each other&rsquo;s eyes for four minutes, in silence. If you are apart,
-            look into the camera on your call. It will feel strange, then it won&rsquo;t.
-          </p>
+          <p className="center narrow lede-sm">{G.body}</p>
         </Reveal>
         <Reveal delay={0.6}>
-          <p className="muted small center narrow">
-            Not part of the 1997 study itself. It comes from Mandy Len Catron&rsquo;s 2015 essay, which made the questions
-            famous.
-          </p>
+          <p className="muted small center narrow">{G.note}</p>
         </Reveal>
         <Reveal delay={0.8}>
-          <ReadyBar label={'We’re ready'} localLabel={'We’re ready'} />
+          <ReadyBar label={G.ready} localLabel={G.ready} />
         </Reveal>
         <Reveal delay={1}>
           <button className="link" onClick={() => session.dispatch({ type: 'skipGaze' })}>
-            Skip to the end
+            {G.skip}
           </button>
         </Reveal>
       </main>
@@ -551,16 +550,16 @@ export function Gaze() {
               </motion.span>
             ) : (
               <motion.span key="look" className="gaze-word" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 2 }}>
-                {over ? 'Welcome back' : 'just look'}
+                {over ? G.welcome : G.look}
               </motion.span>
             )}
           </AnimatePresence>
           {running && <span className="gaze-time">{fmt(total - elapsed)}</span>}
         </div>
       </div>
-      <p className="muted small center">{running ? (local ? 'Look at each other. Nothing else is needed.' : `Look at ${theirName}. Nothing else is needed.`) : ''}</p>
+      <p className="muted small center">{running ? (local ? G.lookEach : G.lookAt(theirName)) : ''}</p>
       <button className="link gaze-end" onClick={() => session.dispatch({ type: 'skipGaze' })}>
-        End here
+        {G.end}
       </button>
     </main>
   );

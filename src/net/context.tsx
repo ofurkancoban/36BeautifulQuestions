@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useSyncExternalStore } from 'react';
 import type { GameSession } from './session';
 import { askerFor, other, type GameState, type Role } from './game';
+import { useT } from '../i18n';
 
 export const SessionContext = createContext<GameSession | null>(null);
 
@@ -22,6 +23,7 @@ export function useSnapshot() {
 export function useGame() {
   const session = useSession();
   const snap = useSnapshot();
+  const m = useT();
   const state = snap.state as GameState;
   const local = session.kind === 'local';
   let me: Role = session.role;
@@ -31,10 +33,10 @@ export function useGame() {
   }
   const them: Role = other(me);
   const myName = state.players[me]?.name ?? session.me.name;
-  const theirName = state.players[them]?.name ?? 'your partner';
+  const theirName = state.players[them]?.name ?? m.common.partner;
   /** How to address a role on screen: "You" for this device's person, otherwise their name. */
-  const label = (role: Role) => (!local && role === session.role ? 'You' : (state.players[role]?.name ?? 'Partner'));
-  return { session, snap, state, me, them, myName, theirName, local, label };
+  const label = (role: Role) => (!local && role === session.role ? m.common.you : (state.players[role]?.name ?? m.common.partner));
+  return { session, snap, state, me, them, myName, theirName, local, label, m };
 }
 
 /** Re-renders every `ms` and returns the shared (host) clock. */

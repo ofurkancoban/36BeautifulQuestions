@@ -14,6 +14,7 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:5199/',
     ...devices['Pixel 7'],
+    locale: 'en-US',
     ...(channel ? { channel } : {}),
     // Headless browsers hide local IPs behind mDNS names that they then cannot resolve,
     // which stops two local peers from finding each other.

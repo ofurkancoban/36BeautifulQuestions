@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useGame } from '../net/context';
+import { useT } from '../i18n';
 import type { ReactionKind } from '../net/session';
 import { setAmbience } from '../lib/ambience';
 import { sfx, vibrate } from '../lib/sound';
@@ -18,12 +19,6 @@ const ICONS: Record<ReactionKind, (p: { size?: number }) => ReactNode> = {
   tear: TearIcon,
 };
 
-const LABELS: Record<ReactionKind, string> = {
-  heart: 'Send love',
-  spark: 'Send wonder',
-  laugh: 'Send a laugh',
-  tear: 'Send tenderness',
-};
 
 interface Floater {
   id: string;
@@ -126,6 +121,7 @@ export function FloatLayer({ floaters }: { floaters: Floater[] }) {
 }
 
 export function TouchBloom({ both, theirTouch, theirName }: { both: boolean; theirTouch: boolean; theirName: string }) {
+  const m = useT();
   return (
     <AnimatePresence>
       {(both || theirTouch) && (
@@ -145,7 +141,7 @@ export function TouchBloom({ both, theirTouch, theirName }: { both: boolean; the
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            {both ? 'Together, for a moment.' : `${theirName} is reaching for you. Hold the heart.`}
+            {both ? m.intimacy.together : m.intimacy.reaching(theirName)}
           </motion.div>
         </motion.div>
       )}
@@ -160,6 +156,7 @@ export function Dock({
   both,
   setTouch,
 }: Pick<ReturnType<typeof useIntimacy>, 'send' | 'myTouch' | 'theirTouch' | 'both' | 'setTouch'>) {
+  const m = useT();
   const holding = useRef(false);
   const start = () => {
     if (holding.current) return;
@@ -178,7 +175,7 @@ export function Dock({
   const btn = (k: ReactionKind) => {
     const Icon = ICONS[k];
     return (
-      <motion.button key={k} className="dock-btn" whileTap={{ scale: 0.8 }} onClick={() => send(k)} aria-label={LABELS[k]} title={LABELS[k]}>
+      <motion.button key={k} className="dock-btn" whileTap={{ scale: 0.8 }} onClick={() => send(k)} aria-label={m.intimacy[k]} title={m.intimacy[k]}>
         <Icon size={19} />
       </motion.button>
     );
@@ -199,13 +196,13 @@ export function Dock({
         onContextMenu={(e) => e.preventDefault()}
         onKeyDown={(e) => (e.key === ' ' || e.key === 'Enter') && start()}
         onKeyUp={end}
-        aria-label="Hold to reach for your partner"
-        title="Hold to reach for your partner"
+        aria-label={m.intimacy.holdAria}
+        title={m.intimacy.holdAria}
       >
         <span className="touch-orb-ring" />
         <span className="touch-orb-ring touch-orb-ring-2" />
         <HeartIcon size={22} filled={myTouch || both} />
-        <span className="touch-orb-label">hold</span>
+        <span className="touch-orb-label">{m.intimacy.hold}</span>
       </button>
       {kinds2.map(btn)}
     </div>

@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { roman, setOf, type Question } from '../data/questions';
+import { roman, type Question } from '../data/questions';
 import { ease } from './ui';
 
 interface Props {
@@ -8,17 +8,26 @@ interface Props {
   canReveal: boolean;
   onReveal: () => void;
   waitingLabel: string;
+  /** Localized set name and short labels, so the card follows the active language. */
+  setName: string;
+  labels: { set: string; no: string; reveal: string };
 }
 
+type FaceProps = { q: Question; setName: string; labels: Props['labels'] };
+
 function sizeClass(text: string) {
+  if (text.length > 250) return 'q-xxs';
   if (text.length > 190) return 'q-xs';
   if (text.length > 130) return 'q-sm';
   if (text.length > 70) return 'q-md';
   return 'q-lg';
 }
 
-function CardBack({ q }: { q: Question }) {
-  const set = setOf(q.n - 1);
+function numeral(q: Question) {
+  return roman(q.set);
+}
+
+function CardBack({ q, setName, labels }: FaceProps) {
   return (
     <div className="card-face card-back">
       <svg className="card-back-art" viewBox="0 0 300 420" preserveAspectRatio="none" aria-hidden>
@@ -77,10 +86,10 @@ function CardBack({ q }: { q: Question }) {
           />
         </g>
         <text x="150" y="70" textAnchor="middle" fill="#ecd1a2" fontFamily="Manrope, sans-serif" fontSize="9" letterSpacing="4">
-          SET {set.numeral}
+          {labels.set.toLocaleUpperCase()} {numeral(q)}
         </text>
         <text x="150" y="364" textAnchor="middle" fill="#ecd1a2" fontFamily="Cormorant Garamond, serif" fontStyle="italic" fontSize="20">
-          {set.name}
+          {setName}
         </text>
       </svg>
       <div className="card-sheen" />
@@ -88,17 +97,16 @@ function CardBack({ q }: { q: Question }) {
   );
 }
 
-function CardFront({ q }: { q: Question }) {
-  const set = setOf(q.n - 1);
+function CardFront({ q, labels }: FaceProps) {
   return (
     <div className="card-face card-front">
       <div className="card-paper" />
       <div className="card-frame" />
       <div className="card-front-inner">
         <div className="card-meta">
-          <span>No. {roman(q.n)}</span>
+          <span>{labels.no} {roman(q.n)}</span>
           <span className="card-meta-dot">◆</span>
-          <span>Set {set.numeral}</span>
+          <span>{labels.set} {numeral(q)}</span>
         </div>
         <p className={`card-question ${sizeClass(q.text)}`}>{q.text}</p>
         <div className="card-foot">
@@ -113,7 +121,7 @@ function CardFront({ q }: { q: Question }) {
   );
 }
 
-export default function QuestionCard({ question, revealed, canReveal, onReveal, waitingLabel }: Props) {
+export default function QuestionCard({ question, revealed, canReveal, onReveal, waitingLabel, setName, labels }: Props) {
   return (
     <motion.div
       className="card-stage"
@@ -127,13 +135,13 @@ export default function QuestionCard({ question, revealed, canReveal, onReveal, 
         className={`card ${canReveal && !revealed ? 'card-tappable' : ''}`}
         onClick={() => canReveal && !revealed && onReveal()}
         disabled={!canReveal || revealed}
-        aria-label={revealed ? question.text : canReveal ? 'Reveal the card' : waitingLabel}
+        aria-label={revealed ? question.text : canReveal ? labels.reveal : waitingLabel}
         animate={{ rotateY: revealed ? 180 : 0 }}
         transition={{ duration: 1.1, ease: [0.65, 0, 0.25, 1] }}
         whileHover={canReveal && !revealed ? { y: -6, rotateZ: -0.6 } : undefined}
       >
-        <CardBack q={question} />
-        <CardFront q={question} />
+        <CardBack q={question} setName={setName} labels={labels} />
+        <CardFront q={question} setName={setName} labels={labels} />
       </motion.button>
     </motion.div>
   );

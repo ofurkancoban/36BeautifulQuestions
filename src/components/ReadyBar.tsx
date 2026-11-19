@@ -4,7 +4,7 @@ import { Button, CheckIcon } from './ui';
 
 /** "Both must agree" control used between phases. On one phone a single tap speaks for both. */
 export default function ReadyBar({ label, waitingLabel, localLabel }: { label: string; waitingLabel?: string; localLabel?: string }) {
-  const { session, state, me, them, theirName, local } = useGame();
+  const { session, state, me, them, theirName, local, m } = useGame();
   if (local) {
     return (
       <div className="ready-bar">
@@ -17,14 +17,14 @@ export default function ReadyBar({ label, waitingLabel, localLabel }: { label: s
   return (
     <div className="ready-bar">
       <Button variant={mine ? 'ghost' : 'primary'} onClick={() => session.dispatch({ type: 'ready', value: !mine })}>
-        {mine ? (waitingLabel ?? `Waiting for ${theirName}`) : label}
+        {mine ? (waitingLabel ?? m.ready.waitingFor(theirName)) : label}
       </Button>
       <div className="ready-pips">
-        <Pip on={mine} label="You" />
+        <Pip on={mine} label={m.common.you} />
         <span className="ready-thread" />
         <Pip on={theirs} label={theirName} />
       </div>
-      {mine && <span className="ready-hint">Tap again if you need another moment.</span>}
+      {mine && <span className="ready-hint">{m.ready.hint}</span>}
     </div>
   );
 }

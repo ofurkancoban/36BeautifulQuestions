@@ -66,6 +66,15 @@ test('two partners pair, take turns and stay in sync', async ({ browser }) => {
   await expect(host.getByText('Listen as Deniz answers first.')).toBeVisible({ timeout: 60_000 });
   await expect(host.getByLabel('Question 2 of 36')).toBeVisible();
 
+  // Mid-ritual, the guest switches to Turkish. Each device keeps its own language and they stay in sync.
+  await button(guest, /^Language/).click();
+  await guest.getByRole('option', { name: /Türkçe/ }).click();
+  await expect(guest.getByText('Sesli oku, sonra ilk sen cevapla.')).toBeVisible();
+  await expect(guest.locator('html')).toHaveAttribute('lang', 'tr');
+  await button(guest, 'Cevapladım').click();
+  await expect(host.getByText('Your turn to answer.')).toBeVisible({ timeout: 10_000 });
+  await expect(guest.getByText('Şimdi dinle, Elif cevaplıyor.')).toBeVisible();
+
   await hostCtx.close();
   await guestCtx.close();
 });

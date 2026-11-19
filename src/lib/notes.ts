@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { QUESTIONS } from '../data/questions';
+import { QUESTIONS, type Question } from '../data/questions';
 
 /**
  * Private notes: written on this device, kept only in this device's storage, never sent to the partner.
@@ -50,9 +50,9 @@ export function useNotes(code: string) {
   return { notes, setNote };
 }
 
-export function notesAsText(notes: Notes, names: string, date: string) {
+export function notesAsText(notes: Notes, names: string, date: string, questions: Question[] = QUESTIONS) {
   const lines = [`36 Beautiful Questions`, `${names}, ${date}`, ''];
-  for (const q of QUESTIONS) {
+  for (const q of questions) {
     const text = notes[q.n - 1];
     if (!text) continue;
     lines.push(`${q.n}. ${q.text}`, '', text.trim(), '', '');

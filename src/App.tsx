@@ -10,8 +10,10 @@ import { ambientPlaying, setSoundEnabled, soundEnabled, startAmbient, stopAmbien
 import { SessionContext, useGame, useSession, useSnapshot } from './net/context';
 import type { GameState } from './net/game';
 import { LocalSession } from './net/local';
-import { inviteLink, loadActive, normalizeCode, Session, type GameSession, type SavedSession } from './net/session';
+import { inviteLink, loadActive, normalizeCode, Session, type ErrorCode, type GameSession, type SavedSession } from './net/session';
 import { useWakeLock } from './lib/wakeLock';
+import { useT } from './i18n';
+import { LangButton, LangList } from './components/LangPicker';
 import { useSeating } from './lib/seating';
 import { askerFor } from './net/game';
 import Finale from './screens/Finale';
@@ -42,7 +44,7 @@ function moodFor(state: GameState | null): Mood {
 
 export default function App() {
   const [session, setSession] = useState<GameSession | null>(null);
-  const [landingError, setLandingError] = useState<string | null>(null);
+  const [landingError, setLandingError] = useState<ErrorCode | null>(null);
   const [invite] = useState(readInvite);
   const ambience = useAmbience();
 
@@ -66,7 +68,7 @@ export default function App() {
   }, [session]);
 
   const fail = useCallback(
-    (msg: string) => {
+    (msg: ErrorCode) => {
       session?.leave();
       setSession(null);
       setLandingError(msg);
@@ -94,9 +96,10 @@ export default function App() {
   );
 }
 
-function SessionView({ onLeave, onFail }: { onLeave: () => void; onFail: (msg: string) => void }) {
+function SessionView({ onLeave, onFail }: { onLeave: () => void; onFail: (msg: ErrorCode) => void }) {
   const session = useSession();
   const snap = useSnapshot();
+  const m = useT();
 
   useEffect(() => {
     setAmbience({ mood: moodFor(snap.state) });
@@ -113,12 +116,12 @@ function SessionView({ onLeave, onFail }: { onLeave: () => void; onFail: (msg: s
           <Monogram size={64} />
           <motion.span className="seeking-ring" animate={{ scale: [1, 1.8], opacity: [0.6, 0] }} transition={{ duration: 2.2, repeat: Infinity }} />
         </div>
-        <p className="display-sm">Finding your person</p>
+        <p className="display-sm">{m.session.finding}</p>
         <p className="muted small">
-          Invitation <span className="mono">{session.code}</span>
+          {m.session.invitation} <span className="mono">{session.code}</span>
         </p>
         <Button variant="ghost" onClick={onLeave}>
-          Cancel
+          {m.session.cancel}
         </Button>
       </motion.main>
     );
@@ -127,7 +130,7 @@ function SessionView({ onLeave, onFail }: { onLeave: () => void; onFail: (msg: s
 }
 
 function Stage({ onLeave }: { onLeave: () => void }) {
-  const { session, snap, state, theirName, local } = useGame();
+  const { session, snap, state, theirName, local, m } = useGame();
   const intimacy = useIntimacy();
   const [menu, setMenu] = useState(false);
   const [how, setHow] = useState(false);
@@ -173,31 +176,34 @@ function Stage({ onLeave }: { onLeave: () => void }) {
       <header className="topbar">
         <div className="brand">
           <Monogram size={30} />
-          <span className="brand-name">36 Beautiful Questions</span>
+          <span className="brand-name">{m.common.appName}</span>
         </div>
         <div className={`presence ${snap.partnerOnline ? 'is-on' : ''}`}>
           <span className="presence-dot" />
           <span>
             {local
-              ? 'one phone'
+              ? m.session.onePhone
               : snap.partnerOnline
-              ? `with ${theirName}`
+              ? m.session.withName(theirName)
               : hasPartner
-                ? `${theirName} stepped away`
+                ? m.session.away(theirName)
                 : snap.status === 'reconnecting' || snap.status === 'connecting'
-                  ? 'connecting'
-                  : 'awaiting'}
+                  ? m.session.connecting
+                  : m.session.awaiting}
           </span>
         </div>
-        <button className="icon-btn" onClick={() => setMenu(true)} aria-label="Menu">
-          <MenuIcon />
-        </button>
+        <div className="topbar-actions">
+          <LangButton />
+          <button className="icon-btn" onClick={() => setMenu(true)} aria-label={m.menu.title}>
+            <MenuIcon />
+          </button>
+        </div>
       </header>
 
       <AnimatePresence>
         {away && state.phase !== 'lobby' && (
           <motion.div className="away-banner" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.5, ease }}>
-            Waiting for {theirName} to reconnect. Everything is saved.
+            {m.session.awayBanner(theirName)}
           </motion.div>
         )}
       </AnimatePresence>
@@ -225,7 +231,7 @@ function Stage({ onLeave }: { onLeave: () => void }) {
         )}
       </AnimatePresence>
 
-      <Sheet open={menu} onClose={() => setMenu(false)} title="Menu">
+      <Sheet open={menu} onClose={() => setMenu(false)} title={m.menu.title}>
         <MenuBody
           state={state}
           onHow={() => {
@@ -237,7 +243,7 @@ function Stage({ onLeave }: { onLeave: () => void }) {
           session={session}
         />
       </Sheet>
-      <Sheet open={how} onClose={() => setHow(false)} title="The thirty-six questions">
+      <Sheet open={how} onClose={() => setHow(false)} title={m.how.title}>
         <HowItWorks />
       </Sheet>
     </motion.div>
@@ -249,6 +255,8 @@ function MenuBody({ state, session, onHow, onLeave, close }: { state: GameState;
   const [music, setMusic] = useState(ambientPlaying());
   const [confirm, setConfirm] = useState<'leave' | 'skip' | 'next' | null>(null);
   const [copied, setCopied] = useState(false);
+  const [langOpen, setLangOpen] = useState(false);
+  const m = useT();
 
   const twoStep = (what: 'leave' | 'skip' | 'next', run: () => void) => {
     if (confirm === what) {
@@ -268,7 +276,7 @@ function MenuBody({ state, session, onHow, onLeave, close }: { state: GameState;
           if (!on) setMusic(false);
         }}
       >
-        <span>Sound cues</span>
+        <span>{m.menu.sound}</span>
         <span className={`toggle ${sound ? 'is-on' : ''}`} />
       </button>
       <button
@@ -280,7 +288,7 @@ function MenuBody({ state, session, onHow, onLeave, close }: { state: GameState;
           setMusic(!music);
         }}
       >
-        <span>Ambient music</span>
+        <span>{m.menu.music}</span>
         <span className={`toggle ${music ? 'is-on' : ''}`} />
       </button>
       {session.kind === 'remote' && (
@@ -295,26 +303,31 @@ function MenuBody({ state, session, onHow, onLeave, close }: { state: GameState;
           }
         }}
       >
-        <span>Invitation</span>
-        <span className="mono">{copied ? 'link copied' : state.code}</span>
+        <span>{m.menu.invitation}</span>
+        <span className="mono">{copied ? m.menu.linkCopied : state.code}</span>
       </button>
       )}
+      <button className="menu-row" onClick={() => setLangOpen((v) => !v)} aria-expanded={langOpen}>
+        <span>{m.common.language}</span>
+        <span className="muted">{m.meta.name}</span>
+      </button>
+      {langOpen && <LangList onPick={() => setLangOpen(false)} />}
       <button className="menu-row" onClick={onHow}>
-        <span>How it works</span>
+        <span>{m.menu.how}</span>
         <span className="muted">›</span>
       </button>
       {state.phase === 'question' && (
         <>
           <button className="menu-row" onClick={() => twoStep('skip', () => session.dispatch({ type: 'skipQuestion' }))}>
-            <span>{confirm === 'skip' ? 'Tap again to pass this question' : 'Pass this question'}</span>
+            <span>{confirm === 'skip' ? m.menu.passConfirm : m.menu.pass}</span>
           </button>
           <button className="menu-row" onClick={() => twoStep('next', () => session.dispatch({ type: 'nextSet' }))}>
-            <span>{confirm === 'next' ? 'Tap again to move on' : state.q >= 24 ? 'Go to the closing' : 'Move to the next set'}</span>
+            <span>{confirm === 'next' ? m.menu.moveConfirm : state.q >= 24 ? m.menu.closing : m.menu.nextSet}</span>
           </button>
         </>
       )}
       <button className="menu-row menu-danger" onClick={() => twoStep('leave', onLeave)}>
-        <span>{confirm === 'leave' ? 'Tap again to leave' : 'Leave the ritual'}</span>
+        <span>{confirm === 'leave' ? m.menu.leaveConfirm : m.menu.leave}</span>
       </button>
     </div>
   );

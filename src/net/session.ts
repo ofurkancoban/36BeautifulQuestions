@@ -1,4 +1,5 @@
 import type Peer from 'peerjs';
+import type { Messages } from '../i18n/en';
 import type { DataConnection } from 'peerjs';
 import { initialState, reduce, upgradeState, type Action, type GameState, type Role } from './game';
 import { cleanName, isGameState, isWire } from './validate';
@@ -19,6 +20,8 @@ const MIRROR_KEY = (code: string) => `b36q:mirror:${code}`;
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 const PING_MS = 2500;
 const STALE_MS = 9000;
+
+export type ErrorCode = keyof Messages['errors'];
 
 export type Status = 'connecting' | 'waiting' | 'connected' | 'reconnecting' | 'error';
 
@@ -49,7 +52,8 @@ export interface SavedSession {
 
 export interface Snapshot {
   status: Status;
-  error: string | null;
+  /** Error key into the `errors` message table; translated at render time. */
+  error: ErrorCode | null;
   state: GameState | null;
   partnerOnline: boolean;
   clockOffset: number;
@@ -253,7 +257,7 @@ export class Session extends SessionBase implements GameSession {
         this.PeerCtor = m.default;
         this.start();
       })
-      .catch(() => this.set({ status: 'error', error: 'Could not load the connection library. Check your internet connection.' }));
+      .catch(() => this.set({ status: 'error', error: 'loadFailed' }));
   }
 
   // ---------- public API ----------
@@ -322,7 +326,7 @@ export class Session extends SessionBase implements GameSession {
         peer.destroy();
         this.hostRetries++;
         if (this.hostRetries > 14) {
-          this.set({ status: 'error', error: 'This ritual seems to be open in another tab or device.' });
+          this.set({ status: 'error', error: 'otherTab' });
           return;
         }
         this.set({ status: 'reconnecting' });
@@ -332,7 +336,7 @@ export class Session extends SessionBase implements GameSession {
         peer.destroy();
         this.retryTimer = window.setTimeout(() => this.startHost(), 3000);
       } else if (type === 'browser-incompatible') {
-        this.set({ status: 'error', error: 'This browser cannot open a direct connection. Try a recent Chrome, Safari or Firefox.' });
+        this.set({ status: 'error', error: 'incompatible' });
       }
     });
   }
@@ -408,7 +412,7 @@ export class Session extends SessionBase implements GameSession {
         } else {
           this.set({
             status: 'error',
-            error: 'We couldn’t find a ritual with that code. Ask your partner to keep their invitation open.',
+            error: 'notFound',
           });
         }
       } else if (type === 'network' || type === 'server-error' || type === 'socket-error' || type === 'socket-closed') {
@@ -416,7 +420,7 @@ export class Session extends SessionBase implements GameSession {
         peer.destroy();
         this.retryTimer = window.setTimeout(() => this.startGuest(), 3000);
       } else if (type === 'browser-incompatible') {
-        this.set({ status: 'error', error: 'This browser cannot open a direct connection. Try a recent Chrome, Safari or Firefox.' });
+        this.set({ status: 'error', error: 'incompatible' });
       }
     });
   }
@@ -480,7 +484,7 @@ export class Session extends SessionBase implements GameSession {
         break;
       case 'reject':
         if (this.role !== 'guest') return;
-        this.set({ status: 'error', error: 'This ritual already has two people in it.' });
+        this.set({ status: 'error', error: 'full' });
         this.destroy();
         break;
       case 'ping':

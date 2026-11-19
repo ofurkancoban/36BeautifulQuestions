@@ -7,6 +7,7 @@ import ReadyBar from '../components/ReadyBar';
 import { setSeating, useSeating, type Seating } from '../lib/seating';
 import { sfx } from '../lib/sound';
 import type { Role } from '../net/game';
+import { useT } from '../i18n';
 
 function initial(name: string) {
   return (Array.from(name.trim())[0] ?? '?').toUpperCase();
@@ -48,6 +49,8 @@ export function Orbs({ a, b, linked }: { a: string; b: string | null; linked: bo
 
 function Invitation({ code }: { code: string }) {
   const link = inviteLink(code);
+  const m = useT();
+  const L = m.lobby;
   const [qr, setQr] = useState('');
   const [copied, setCopied] = useState<'link' | 'code' | null>(null);
 
@@ -71,7 +74,7 @@ function Invitation({ code }: { code: string }) {
 
   const share = async () => {
     try {
-      await navigator.share({ title: '36 Beautiful Questions', text: 'Come answer thirty-six questions with me.', url: link });
+      await navigator.share({ title: m.common.appName, text: L.shareText, url: link });
     } catch {
       void copy('link');
     }
@@ -79,23 +82,23 @@ function Invitation({ code }: { code: string }) {
 
   return (
     <div className="invitation">
-      <span className="eyebrow">Your invitation</span>
-      <button className="invite-code" onClick={() => copy('code')} aria-label={`Invitation code ${code}, tap to copy`}>
+      <span className="eyebrow">{L.yourInvitation}</span>
+      <button className="invite-code" onClick={() => copy('code')} aria-label={L.codeAria(code)}>
         {Array.from(code).map((ch, i) => (
           <motion.span key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 + i * 0.07, duration: 0.6, ease }}>
             {ch}
           </motion.span>
         ))}
       </button>
-      <span className="invite-hint">{copied === 'code' ? 'Code copied' : 'Share the code, the link, or let them scan'}</span>
-      {qr && <div className="qr" dangerouslySetInnerHTML={{ __html: qr }} aria-label="QR code for the invitation link" />}
+      <span className="invite-hint">{copied === 'code' ? L.codeCopied : L.shareHint}</span>
+      {qr && <div className="qr" dangerouslySetInnerHTML={{ __html: qr }} aria-label={L.qrAria} />}
       <div className="invite-actions">
         <Button variant="ghost" onClick={() => copy('link')}>
-          {copied === 'link' ? 'Link copied' : 'Copy link'}
+          {copied === 'link' ? L.linkCopied : L.copyLink}
         </Button>
         {typeof navigator.share === 'function' && (
           <Button variant="ghost" onClick={share}>
-            Share
+            {L.share}
           </Button>
         )}
       </div>
@@ -117,7 +120,8 @@ function Segmented<T extends string>({ value, options, onChange }: { value: T; o
 }
 
 export default function Lobby() {
-  const { session, snap, state, myName, label } = useGame();
+  const { session, snap, state, myName, label, m, local } = useGame();
+  const L = m.lobby;
   const guest = state.players.guest;
   const partner = state.players[session.role === 'host' ? 'guest' : 'host'];
   const linked = !!guest && snap.partnerOnline;
@@ -151,7 +155,7 @@ export default function Lobby() {
               <>
                 <Reveal delay={0.15}>
                   <h2 className="display-sm">
-                    {guest ? `Waiting for ${guest.name} to return` : 'Invite your person'}
+                    {guest ? L.waitingReturn(guest.name) : L.invite}
                   </h2>
                 </Reveal>
                 <Reveal delay={0.3}>
@@ -160,8 +164,8 @@ export default function Lobby() {
               </>
             ) : (
               <Reveal delay={0.15}>
-                <h2 className="display-sm">Finding your person</h2>
-                <p className="muted center">Opening a quiet line between your screens</p>
+                <h2 className="display-sm">{m.session.finding}</h2>
+                <p className="muted center">{L.findingSub}</p>
               </Reveal>
             )}
           </motion.div>
@@ -180,63 +184,63 @@ export default function Lobby() {
 
             <Reveal delay={0.6} className="settings">
               <div className="setting">
-                <span className="setting-label">Pacing</span>
+                <span className="setting-label">{L.pacing}</span>
                 <Segmented
                   value={state.pacing}
                   onChange={(pacing) => session.dispatch({ type: 'setPacing', pacing })}
                   options={[
-                    { v: 'classic', label: 'Classic · 45 min' },
-                    { v: 'unhurried', label: 'Unhurried' },
+                    { v: 'classic', label: L.classic },
+                    { v: 'unhurried', label: L.unhurried },
                   ]}
                 />
                 <span className="setting-note">
                   {state.pacing === 'classic'
-                    ? 'Fifteen minutes per set, as in the original study.'
-                    : 'No clock. Stay with each question as long as you like.'}
+                    ? L.classicNote
+                    : L.unhurriedNote}
                 </span>
               </div>
               <div className="setting">
-                <span className="setting-label">Who holds the first card</span>
+                <span className="setting-label">{L.firstCard}</span>
                 <Segmented<Role>
                   value={state.firstAsker}
                   onChange={(role) => session.dispatch({ type: 'setFirstAsker', role })}
                   options={(session.role === 'host' ? (['host', 'guest'] as const) : (['guest', 'host'] as const)).map((r) => ({
                     v: r,
-                    label: label(r) === 'You' ? 'Me' : label(r),
+                    label: !local && r === session.role ? m.common.me : label(r),
                   }))}
                 />
                 <button className="link" onClick={fate} disabled={flipping}>
                   {flipping ? (
                     <motion.span animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 0.6, repeat: Infinity }}>
-                      Fate is deciding
+                      {L.fateDeciding}
                     </motion.span>
                   ) : (
-                    'Let fate decide'
+                    L.fate
                   )}
                 </button>
               </div>
               {session.kind === 'local' && (
                 <div className="setting">
-                  <span className="setting-label">How you sit</span>
+                  <span className="setting-label">{L.seating}</span>
                   <Segmented<Seating>
                     value={seating}
                     onChange={setSeating}
                     options={[
-                      { v: 'across', label: 'Across the table' },
-                      { v: 'side', label: 'Side by side' },
+                      { v: 'across', label: L.across },
+                      { v: 'side', label: L.side },
                     ]}
                   />
                   <span className="setting-note">
                     {seating === 'across'
-                      ? `Lay the phone facing ${state.players.host.name}. On ${guest?.name ?? 'their'}\u2019s turns the whole screen turns around.`
-                      : 'The card always faces the same way.'}
+                      ? L.acrossNote(state.players.host.name, guest?.name ?? m.common.partner)
+                      : L.sideNote}
                   </span>
                 </div>
               )}
             </Reveal>
 
             <Reveal delay={0.8}>
-              <ReadyBar label={'I’m ready'} localLabel="Begin the ritual" />
+              <ReadyBar label={L.ready} localLabel={L.beginLocal} />
             </Reveal>
           </motion.div>
         )}
