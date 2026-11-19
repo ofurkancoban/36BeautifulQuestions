@@ -2,9 +2,16 @@ import { motion } from 'motion/react';
 import { useGame } from '../net/context';
 import { Button, CheckIcon } from './ui';
 
-/** "Both must agree" control used between phases. */
-export default function ReadyBar({ label, waitingLabel }: { label: string; waitingLabel?: string }) {
-  const { session, state, me, them, theirName } = useGame();
+/** "Both must agree" control used between phases. On one phone a single tap speaks for both. */
+export default function ReadyBar({ label, waitingLabel, localLabel }: { label: string; waitingLabel?: string; localLabel?: string }) {
+  const { session, state, me, them, theirName, local } = useGame();
+  if (local) {
+    return (
+      <div className="ready-bar">
+        <Button onClick={() => session.dispatch({ type: 'ready', value: true })}>{localLabel ?? label}</Button>
+      </div>
+    );
+  }
   const mine = state.ready[me];
   const theirs = state.ready[them];
   return (

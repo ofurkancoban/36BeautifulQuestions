@@ -20,14 +20,20 @@ The app follows the original procedure:
 ## Features
 
 - Pair with a code, a link or a QR code, then play together in the same room or over a video call
+- **One-phone mode**: pass a single phone back and forth, no connection needed (works offline once installed)
 - Live turn indicator, a 3D card flip that both screens see together, answer status for both partners
+- A three second **undo** after "I've answered", for accidental taps
 - Three moods that shift the living background shader: *Dusk*, *Twilight*, *Midnight*
 - Breathing interludes between sets, a synced four minute timer for "tell your life story" (question 11)
 - Reactions (heart, spark, laugh, tear) that float onto your partner's screen
 - A shared **hold**: press the heart together and both screens glow and beat as one (with haptics on supported phones)
+- **Private notes** on any question, kept only on your device and downloadable as text at the end
+- **The question that stays with you**: each partner picks one at the end; over the network your partner's pick is revealed only after you choose
+- A downloadable keepsake card with your names, the date and your chosen questions
+- The screen stays awake during the ritual (Wake Lock API), so a phone lying on the table does not lock
+- Installable as an app (PWA) with an offline-capable service worker
 - Synthesized bell cues and an optional ambient pad, no audio files
-- A downloadable keepsake card at the end
-- Survives refreshes and short disconnects; the session resumes where you left off
+- Survives refreshes and short disconnects; if the host loses their saved game, the guest's copy restores it
 
 ## How the sync works (no server needed)
 
@@ -35,7 +41,9 @@ The app is fully static, so it runs on GitHub Pages. Real-time sync uses WebRTC 
 
 - The person who creates the ritual is the **host**. Their browser holds the authoritative game state and saves it locally, so a refresh restores it.
 - The **guest** connects directly to the host and sends actions; the host applies them and broadcasts the new state.
-- PeerJS's free public broker is used only for the initial handshake (plus its public STUN/TURN servers for difficult networks). Answers are spoken aloud, so nothing personal is ever transmitted or stored.
+- The guest keeps a copy of the latest state and offers it when reconnecting, so the ritual survives even if the host's browser storage is lost.
+- Every message from the other device is validated before it is used (`src/net/validate.ts`).
+- PeerJS's free public broker is used only for the initial handshake (plus its public STUN/TURN servers for difficult networks). Answers are spoken aloud, so nothing personal is ever transmitted or stored. Private notes never leave the device.
 
 ## Run locally
 
@@ -50,19 +58,24 @@ Open the printed URL in two browser windows (or on two devices on the same netwo
 npm run build     # production build into dist/
 npm run preview   # serve the build locally
 npm run typecheck # TypeScript checks
+npm test          # unit tests (game rules and message validation)
+npm run test:e2e  # two real browsers pair over WebRTC and play (needs internet)
+npm run assets    # re-render the link preview image and app icons with headless Chrome/Edge
 ```
+
+For the end-to-end tests, Playwright uses its bundled Chromium (`npx playwright install chromium`), or an installed browser via `PW_CHANNEL=chrome` or `PW_CHANNEL=msedge`.
 
 ## Deploy to GitHub Pages
 
 1. Push this repository to GitHub (default branch `main`).
 2. In the repository, go to **Settings → Pages** and set **Source** to **GitHub Actions**.
-3. Every push to `main` builds and deploys automatically via `.github/workflows/deploy.yml`.
+3. Every push to `main` type-checks, runs the unit tests, builds and deploys via `.github/workflows/deploy.yml`. The end-to-end tests run in a separate workflow (`e2e.yml`) so a hiccup on the public broker never blocks a release.
 
 The site is served at `https://<your-username>.github.io/<repository-name>/`. The Vite `base` is relative, so any repository name works without changes.
 
 ## Tech
 
-React 19, TypeScript, Vite, Motion (animations), PeerJS (WebRTC), a hand-written WebGL fragment shader for the background, Web Audio for sound, and `qrcode` for invitations. Typography: Cormorant Garamond, Manrope and Pinyon Script from Google Fonts.
+React 19, TypeScript, Vite, Motion (animations), PeerJS (WebRTC, loaded on demand), a hand-written WebGL fragment shader that lowers its own resolution on slow devices, Web Audio for sound, and `qrcode` for invitations (also loaded on demand). Vitest and Playwright for tests. Typography: Cormorant Garamond, Manrope and Pinyon Script, self-hosted through Fontsource, so the site makes no requests to Google.
 
 ## Credits
 

@@ -1,11 +1,13 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useGame, useNow } from '../net/context';
-import { askerFor, SET_MS } from '../net/game';
+import { askerFor, other, SET_MS, type Role } from '../net/game';
 import { PER_SET, QUESTIONS, SETS, roman, setOf } from '../data/questions';
 import QuestionCard from '../components/QuestionCard';
 import ReadyBar from '../components/ReadyBar';
-import { Button, CheckIcon, Flourish, LetterRise, Reveal, ease } from '../components/ui';
+import { Button, CheckIcon, Flourish, LetterRise, PenIcon, Reveal, ease } from '../components/ui';
+import { Sheet } from '../components/Sheet';
+import { useNotes } from '../lib/notes';
 import { sfx, vibrate } from '../lib/sound';
 
 // ---------------------------------------------------------------------------
@@ -39,7 +41,7 @@ export function Prelude() {
         ))}
       </div>
       <Reveal delay={1.3}>
-        <ReadyBar label="I promise" />
+        <ReadyBar label="I promise" localLabel="We promise" />
       </Reveal>
     </main>
   );
@@ -112,17 +114,13 @@ function Progress({ q, skipped }: { q: number; skipped: number[] }) {
   );
 }
 
-function TurnLine({ askerIsMe, myName, theirName }: { askerIsMe: boolean; myName: string; theirName: string }) {
+function TurnLine({ left, right, activeLeft }: { left: string; right: string; activeLeft: boolean }) {
   return (
     <div className="turn">
-      <div className={`turn-name ${askerIsMe ? 'is-active' : ''}`}>{myName}</div>
+      <div className={`turn-name ${activeLeft ? 'is-active' : ''}`}>{left}</div>
       <div className="turn-track">
         <span className="turn-rail" />
-        <motion.span
-          className="turn-flame"
-          animate={{ left: askerIsMe ? '0%' : '100%' }}
-          transition={{ duration: 1.1, ease }}
-        >
+        <motion.span className="turn-flame" animate={{ left: activeLeft ? '0%' : '100%' }} transition={{ duration: 1.1, ease }}>
           <svg viewBox="0 0 24 32" width="16" height="22" aria-hidden>
             <path d="M12 1c2 6 8 9 8 17a8 8 0 0 1-16 0c0-5 3-7 4-11 1 3 2 4 4 5-1-4 0-8 0-11z" fill="url(#flame-g)" />
             <defs>
@@ -135,7 +133,7 @@ function TurnLine({ askerIsMe, myName, theirName }: { askerIsMe: boolean; myName
           </svg>
         </motion.span>
       </div>
-      <div className={`turn-name ${!askerIsMe ? 'is-active' : ''}`}>{theirName}</div>
+      <div className={`turn-name ${!activeLeft ? 'is-active' : ''}`}>{right}</div>
     </div>
   );
 }
@@ -204,49 +202,107 @@ function SetClock({ startedAt }: { startedAt: number }) {
   );
 }
 
+const UNDO_MS = 3000;
+
+function NoteSheet({ open, onClose, q, value, onChange, partner }: { open: boolean; onClose: () => void; q: number; value: string; onChange: (v: string) => void; partner: string | null }) {
+  return (
+    <Sheet open={open} onClose={onClose} title="A private note">
+      <div className="note-sheet">
+        <p className="note-question">
+          <span className="mono">No. {roman(q + 1)}</span> {QUESTIONS[q].text}
+        </p>
+        <textarea
+          className="note-input"
+          value={value}
+          autoFocus
+          maxLength={4000}
+          placeholder="What do you want to remember about this moment?"
+          onChange={(e) => onChange(e.target.value)}
+        />
+        <p className="muted small">
+          {partner ? `Kept only on this device. Never sent to ${partner}.` : 'Kept only on this phone. Never sent anywhere.'} You can read
+          all your notes at the end.
+        </p>
+      </div>
+    </Sheet>
+  );
+}
+
 export function QuestionScreen() {
-  const { session, state, me, them, myName, theirName } = useGame();
+  const { session, state, me, theirName, local, label } = useGame();
   const question = QUESTIONS[state.q];
   const set = setOf(state.q);
   const asker = askerFor(state);
+  const listener = other(asker);
   const askerIsMe = asker === me;
-  const askerName = askerIsMe ? myName : theirName;
   const askerDone = state.answered[asker];
   const myDone = state.answered[me];
+  const askerName = state.players[asker]?.name ?? 'Partner';
+  const listenerName = state.players[listener]?.name ?? 'Partner';
+  const { notes, setNote } = useNotes(state.code);
+  const [noteOpen, setNoteOpen] = useState(false);
+
+  // "I've answered" waits a moment before it is sent, so an accidental tap can be undone.
+  const [pending, setPending] = useState<number | null>(null);
+  useEffect(() => {
+    if (pending === null) return;
+    if (pending !== state.q) {
+      setPending(null);
+      return;
+    }
+    const id = window.setTimeout(() => {
+      setPending(null);
+      session.dispatch({ type: 'answered' });
+    }, UNDO_MS);
+    return () => clearTimeout(id);
+  }, [pending, state.q, session]);
+  const isPending = pending === state.q;
 
   // Gentle cues when the card passes or turns over.
   const prevQ = useRef(state.q);
   useEffect(() => {
     if (prevQ.current !== state.q) {
-      if (askerIsMe) {
+      if (askerIsMe || local) {
         sfx.turn();
         vibrate(35);
       }
       prevQ.current = state.q;
     }
-  }, [state.q, askerIsMe]);
+  }, [state.q, askerIsMe, local]);
   const prevRevealed = useRef(state.revealed);
   useEffect(() => {
     if (state.revealed && !prevRevealed.current) sfx.reveal();
     prevRevealed.current = state.revealed;
   }, [state.revealed]);
 
-  const chipState = (role: typeof me): 'waiting' | 'speaking' | 'listening' | 'done' => {
+  const chipState = (role: Role): 'waiting' | 'speaking' | 'listening' | 'done' => {
     if (state.answered[role]) return 'done';
     if (!state.revealed) return 'waiting';
     if (role === asker) return 'speaking';
     return askerDone ? 'speaking' : 'listening';
   };
 
+  const answer = () => setPending(state.q);
   let instruction: string;
   let action: { label: string; onClick?: () => void; disabled?: boolean } | null = null;
-  if (!state.revealed) {
+  if (local) {
+    if (!state.revealed) {
+      instruction = `${askerName} holds the card.`;
+      action = { label: 'Turn the card over', onClick: () => session.dispatch({ type: 'reveal' }) };
+    } else if (!askerDone) {
+      instruction = `${askerName}, read it aloud and answer first.`;
+      action = { label: `${askerName} has answered`, onClick: answer };
+    } else {
+      instruction = `${listenerName}, your turn to answer.`;
+      action = { label: `${listenerName} has answered`, onClick: answer };
+    }
+  } else if (!state.revealed) {
     instruction = askerIsMe ? 'You hold the card.' : `${theirName} holds the card.`;
     action = askerIsMe ? { label: 'Turn the card over', onClick: () => session.dispatch({ type: 'reveal' }) } : null;
   } else if (askerIsMe) {
     if (!myDone) {
       instruction = 'Read it aloud, then answer first.';
-      action = { label: 'I’ve answered', onClick: () => session.dispatch({ type: 'answered' }) };
+      action = { label: 'I’ve answered', onClick: answer };
     } else {
       instruction = `Now listen to ${theirName}.`;
       action = { label: `${theirName} is answering`, disabled: true };
@@ -256,8 +312,11 @@ export function QuestionScreen() {
     action = { label: 'Your turn comes next', disabled: true };
   } else {
     instruction = 'Your turn to answer.';
-    action = { label: 'I’ve answered', onClick: () => session.dispatch({ type: 'answered' }) };
+    action = { label: 'I’ve answered', onClick: answer };
   }
+
+  const leftRole: Role = session.role;
+  const hasNote = !!notes[state.q];
 
   return (
     <main className="screen question-screen">
@@ -268,11 +327,23 @@ export function QuestionScreen() {
           </span>
           <span className="q-count">
             {question.n} <span className="muted">of 36</span>
+            <button
+              className={`note-btn ${hasNote ? 'has-note' : ''}`}
+              onClick={() => setNoteOpen(true)}
+              aria-label={hasNote ? 'Edit your private note' : 'Write a private note'}
+              title="Private note"
+            >
+              <PenIcon />
+            </button>
           </span>
-          {state.pacing === 'classic' && state.setStartedAt && <SetClock startedAt={state.setStartedAt} />}
+          {state.pacing === 'classic' && state.setStartedAt ? <SetClock startedAt={state.setStartedAt} /> : <span />}
         </div>
         <Progress q={state.q} skipped={state.skipped} />
-        <TurnLine askerIsMe={askerIsMe} myName={myName} theirName={theirName} />
+        <TurnLine
+          left={state.players[leftRole]?.name ?? ''}
+          right={state.players[other(leftRole)]?.name ?? ''}
+          activeLeft={asker === leftRole}
+        />
       </div>
 
       <div className="q-card-area">
@@ -281,7 +352,7 @@ export function QuestionScreen() {
             key={state.q}
             question={question}
             revealed={state.revealed}
-            canReveal={askerIsMe}
+            canReveal={askerIsMe || local}
             onReveal={() => session.dispatch({ type: 'reveal' })}
             waitingLabel={`${askerName} is about to turn the card`}
           />
@@ -303,16 +374,32 @@ export function QuestionScreen() {
         </AnimatePresence>
         {state.revealed && question.hint && <p className="q-hint">{question.hint}</p>}
         {state.revealed && question.timerSeconds && <MiniTimer endsAt={state.miniTimerEndsAt} seconds={question.timerSeconds} />}
-        {action && (
-          <Button onClick={action.onClick} disabled={action.disabled} variant={action.disabled ? 'ghost' : 'primary'}>
-            {action.label}
+        {isPending ? (
+          <Button variant="ghost" className="btn-undo" onClick={() => setPending(null)} key={`undo-${state.q}`}>
+            <span className="btn-undo-fill" style={{ animationDuration: `${UNDO_MS}ms` }} />
+            <span className="btn-undo-text">Undo</span>
           </Button>
+        ) : (
+          action && (
+            <Button onClick={action.onClick} disabled={action.disabled} variant={action.disabled ? 'ghost' : 'primary'}>
+              {action.label}
+            </Button>
+          )
         )}
         <div className="chips">
-          <SpeakerChip name={askerIsMe ? 'You' : theirName} state={chipState(asker)} />
-          <SpeakerChip name={askerIsMe ? theirName : 'You'} state={chipState(askerIsMe ? them : me)} />
+          <SpeakerChip name={label(asker)} state={chipState(asker)} />
+          <SpeakerChip name={label(listener)} state={chipState(listener)} />
         </div>
       </div>
+
+      <NoteSheet
+        open={noteOpen}
+        onClose={() => setNoteOpen(false)}
+        q={state.q}
+        value={notes[state.q] ?? ''}
+        onChange={(v) => setNote(state.q, v)}
+        partner={local ? null : theirName}
+      />
     </main>
   );
 }
@@ -355,7 +442,7 @@ export function Interlude() {
         </p>
       </Reveal>
       <Reveal delay={1}>
-        <ReadyBar label={`Continue to Set ${next.numeral}`} />
+        <ReadyBar label={`Continue to Set ${next.numeral}`} localLabel={`Continue to Set ${next.numeral}`} />
       </Reveal>
     </main>
   );
@@ -379,7 +466,7 @@ function BreathWord() {
 // ---------------------------------------------------------------------------
 
 export function Gaze() {
-  const { session, state, theirName } = useGame();
+  const { session, state, theirName, local } = useGame();
   const now = useNow(200);
   const startedAt = state.gazeStartedAt;
   const total = 240_000;
@@ -423,7 +510,7 @@ export function Gaze() {
           </p>
         </Reveal>
         <Reveal delay={0.8}>
-          <ReadyBar label={'We’re ready'} />
+          <ReadyBar label={'We’re ready'} localLabel={'We’re ready'} />
         </Reveal>
         <Reveal delay={1}>
           <button className="link" onClick={() => session.dispatch({ type: 'skipGaze' })}>
@@ -471,7 +558,7 @@ export function Gaze() {
           {running && <span className="gaze-time">{fmt(total - elapsed)}</span>}
         </div>
       </div>
-      <p className="muted small center">{running ? `Look at ${theirName}. Nothing else is needed.` : ''}</p>
+      <p className="muted small center">{running ? (local ? 'Look at each other. Nothing else is needed.' : `Look at ${theirName}. Nothing else is needed.`) : ''}</p>
       <button className="link gaze-end" onClick={() => session.dispatch({ type: 'skipGaze' })}>
         End here
       </button>

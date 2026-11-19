@@ -1,6 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useState } from 'react';
-import QRCode from 'qrcode';
 import { useGame } from '../net/context';
 import { inviteLink } from '../net/session';
 import { Button, Flourish, Reveal, ease } from '../components/ui';
@@ -52,7 +51,9 @@ function Invitation({ code }: { code: string }) {
   const [copied, setCopied] = useState<'link' | 'code' | null>(null);
 
   useEffect(() => {
-    QRCode.toString(link, { type: 'svg', margin: 0, errorCorrectionLevel: 'M', color: { dark: '#f3dcb4', light: '#00000000' } })
+    // The QR library is only downloaded when an invitation is actually shown.
+    import('qrcode')
+      .then((m) => m.default.toString(link, { type: 'svg', margin: 0, errorCorrectionLevel: 'M', color: { dark: '#f3dcb4', light: '#00000000' } }))
       .then(setQr)
       .catch(() => setQr(''));
   }, [link]);
@@ -115,9 +116,9 @@ function Segmented<T extends string>({ value, options, onChange }: { value: T; o
 }
 
 export default function Lobby() {
-  const { session, snap, state, me, them, myName } = useGame();
+  const { session, snap, state, myName, label } = useGame();
   const guest = state.players.guest;
-  const partner = state.players[them];
+  const partner = state.players[session.role === 'host' ? 'guest' : 'host'];
   const linked = !!guest && snap.partnerOnline;
   const [flipping, setFlipping] = useState(false);
 
@@ -194,13 +195,13 @@ export default function Lobby() {
               </div>
               <div className="setting">
                 <span className="setting-label">Who holds the first card</span>
-                <Segmented
-                  value={state.firstAsker === me ? 'me' : 'them'}
-                  onChange={(v) => session.dispatch({ type: 'setFirstAsker', role: v === 'me' ? me : them })}
-                  options={[
-                    { v: 'me', label: 'Me' },
-                    { v: 'them', label: partner?.name ?? 'Them' },
-                  ]}
+                <Segmented<Role>
+                  value={state.firstAsker}
+                  onChange={(role) => session.dispatch({ type: 'setFirstAsker', role })}
+                  options={(session.role === 'host' ? (['host', 'guest'] as const) : (['guest', 'host'] as const)).map((r) => ({
+                    v: r,
+                    label: label(r) === 'You' ? 'Me' : label(r),
+                  }))}
                 />
                 <button className="link" onClick={fate} disabled={flipping}>
                   {flipping ? (
@@ -215,7 +216,7 @@ export default function Lobby() {
             </Reveal>
 
             <Reveal delay={0.8}>
-              <ReadyBar label={'I’m ready'} />
+              <ReadyBar label={'I’m ready'} localLabel="Begin the ritual" />
             </Reveal>
           </motion.div>
         )}

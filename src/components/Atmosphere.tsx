@@ -133,6 +133,13 @@ export default function Atmosphere({ mood, pulse = 0 }: Props) {
     let motes: Mote[] = [];
     let W = 0;
     let H = 0;
+    // Adaptive quality: slow devices step down the shader resolution and the number of embers.
+    const LEVELS = [
+      { scale: 0.5, motes: 1 },
+      { scale: 0.34, motes: 0.6 },
+      { scale: 0.22, motes: 0.35 },
+    ];
+    let level = 0;
     const spawn = (initial: boolean): Mote => ({
       x: Math.random() * W,
       y: initial ? Math.random() * H : H + 20,
@@ -148,22 +155,40 @@ export default function Atmosphere({ mood, pulse = 0 }: Props) {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       W = window.innerWidth;
       H = window.innerHeight;
-      const scale = 0.5; // the shader is soft, render it at half resolution
+      const scale = LEVELS[level].scale; // the shader is soft, so it renders below screen resolution
       canvas.width = Math.max(1, Math.floor(W * scale));
       canvas.height = Math.max(1, Math.floor(H * scale));
       dust.width = Math.floor(W * dpr);
       dust.height = Math.floor(H * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       gl?.viewport(0, 0, canvas.width, canvas.height);
-      const count = Math.round(Math.min(90, (W * H) / 14000));
+      const count = Math.round(Math.min(90, (W * H) / 14000) * LEVELS[level].motes);
       motes = Array.from({ length: count }, () => spawn(true));
     };
     resize();
     window.addEventListener('resize', resize);
 
     const start = performance.now();
+    let last = start;
+    let slowFrames = 0;
+    let sampled = 0;
     const frame = (now: number) => {
       if (disposed) return;
+      const dt = now - last;
+      last = now;
+      // Ignore long gaps (tab hidden, debugger) and only judge steady-state frames.
+      if (dt < 250) {
+        sampled++;
+        if (dt > 24) slowFrames++;
+        if (sampled >= 120) {
+          if (slowFrames > 60 && level < LEVELS.length - 1) {
+            level++;
+            resize();
+          }
+          sampled = 0;
+          slowFrames = 0;
+        }
+      }
       const t = (now - start) / 1000;
       const tgt = target.current;
       for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) cur[i][j] += (tgt[i][j] - cur[i][j]) * 0.02;

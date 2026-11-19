@@ -9,7 +9,9 @@ import { setAmbience, useAmbience } from './lib/ambience';
 import { ambientPlaying, setSoundEnabled, soundEnabled, startAmbient, stopAmbient } from './lib/sound';
 import { SessionContext, useGame, useSession, useSnapshot } from './net/context';
 import type { GameState } from './net/game';
-import { inviteLink, loadActive, normalizeCode, Session, type SavedSession } from './net/session';
+import { LocalSession } from './net/local';
+import { inviteLink, loadActive, normalizeCode, Session, type GameSession, type SavedSession } from './net/session';
+import { useWakeLock } from './lib/wakeLock';
 import Finale from './screens/Finale';
 import Landing from './screens/Landing';
 import Lobby from './screens/Lobby';
@@ -37,14 +39,14 @@ function moodFor(state: GameState | null): Mood {
 }
 
 export default function App() {
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<GameSession | null>(null);
   const [landingError, setLandingError] = useState<string | null>(null);
   const [invite] = useState(readInvite);
   const ambience = useAmbience();
 
   const start = useCallback((saved: SavedSession) => {
     setLandingError(null);
-    setSession(new Session(saved));
+    setSession(saved.local ? new LocalSession(saved) : new Session(saved));
     window.history.replaceState(null, '', window.location.pathname + window.location.search);
   }, []);
 
@@ -123,15 +125,16 @@ function SessionView({ onLeave, onFail }: { onLeave: () => void; onFail: (msg: s
 }
 
 function Stage({ onLeave }: { onLeave: () => void }) {
-  const { session, snap, state, theirName } = useGame();
+  const { session, snap, state, theirName, local } = useGame();
   const intimacy = useIntimacy();
   const [menu, setMenu] = useState(false);
   const [how, setHow] = useState(false);
+  useWakeLock(true);
 
   const phaseKey = state.phase === 'question' ? 'question' : `${state.phase}-${Math.floor(state.q / 12)}`;
   const hasPartner = !!state.players.guest;
-  const showDock = hasPartner && snap.partnerOnline && state.phase !== 'gaze' && state.phase !== 'lobby';
-  const away = hasPartner && !snap.partnerOnline;
+  const showDock = !local && hasPartner && snap.partnerOnline && state.phase !== 'gaze' && state.phase !== 'lobby';
+  const away = !local && hasPartner && !snap.partnerOnline;
 
   let screen;
   switch (state.phase) {
@@ -168,7 +171,9 @@ function Stage({ onLeave }: { onLeave: () => void }) {
         <div className={`presence ${snap.partnerOnline ? 'is-on' : ''}`}>
           <span className="presence-dot" />
           <span>
-            {snap.partnerOnline
+            {local
+              ? 'one phone'
+              : snap.partnerOnline
               ? `with ${theirName}`
               : hasPartner
                 ? `${theirName} stepped away`
@@ -232,7 +237,7 @@ function Stage({ onLeave }: { onLeave: () => void }) {
   );
 }
 
-function MenuBody({ state, session, onHow, onLeave, close }: { state: GameState; session: Session; onHow: () => void; onLeave: () => void; close: () => void }) {
+function MenuBody({ state, session, onHow, onLeave, close }: { state: GameState; session: GameSession; onHow: () => void; onLeave: () => void; close: () => void }) {
   const [sound, setSound] = useState(soundEnabled());
   const [music, setMusic] = useState(ambientPlaying());
   const [confirm, setConfirm] = useState<'leave' | 'skip' | 'next' | null>(null);
@@ -271,6 +276,7 @@ function MenuBody({ state, session, onHow, onLeave, close }: { state: GameState;
         <span>Ambient music</span>
         <span className={`toggle ${music ? 'is-on' : ''}`} />
       </button>
+      {session.kind === 'remote' && (
       <button
         className="menu-row"
         onClick={async () => {
@@ -285,6 +291,7 @@ function MenuBody({ state, session, onHow, onLeave, close }: { state: GameState;
         <span>Invitation</span>
         <span className="mono">{copied ? 'link copied' : state.code}</span>
       </button>
+      )}
       <button className="menu-row" onClick={onHow}>
         <span>How it works</span>
         <span className="muted">›</span>

@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  @font-face { font-family: 'CG'; font-weight: 300; font-style: normal; src: url('../node_modules/@fontsource/cormorant-garamond/files/cormorant-garamond-latin-300-normal.woff2'); }
+  @font-face { font-family: 'CG'; font-weight: 300; font-style: italic; src: url('../node_modules/@fontsource/cormorant-garamond/files/cormorant-garamond-latin-300-italic.woff2'); }
+  @font-face { font-family: 'CG'; font-weight: 400; font-style: italic; src: url('../node_modules/@fontsource/cormorant-garamond/files/cormorant-garamond-latin-400-italic.woff2'); }
+  @font-face { font-family: 'MR'; font-weight: 500; src: url('../node_modules/@fontsource/manrope/files/manrope-latin-500-normal.woff2'); }
+  html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
+  body {
+    background:
+      radial-gradient(60% 70% at 50% 110%, rgba(242,167,124,.55), transparent 70%),
+      radial-gradient(50% 60% at 85% 0%, rgba(154,61,82,.55), transparent 70%),
+      radial-gradient(80% 90% at 20% 30%, #3d1023 0%, #160610 60%, #0b0510 100%);
+    color: #fbefe4; font-family: 'CG', serif; position: relative;
+  }
+  .frame { position: absolute; inset: 28px; border: 1.5px solid rgba(227,182,124,.75); border-radius: 18px; }
+  .frame2 { position: absolute; inset: 38px; border: 1px solid rgba(227,182,124,.35); border-radius: 12px; }
+  .wrap { position: absolute; inset: 0; display: flex; align-items: center; padding: 0 110px; gap: 70px; }
+  .num { font-weight: 300; font-size: 300px; line-height: .8; letter-spacing: -.03em;
+    background: linear-gradient(175deg, #fff6e6 10%, #f3dcb4 40%, #e3b67c 70%, #b98549 100%);
+    -webkit-background-clip: text; color: transparent; filter: drop-shadow(0 8px 40px rgba(227,182,124,.35)); }
+  .text { display: flex; flex-direction: column; gap: 18px; }
+  .t1 { font-style: italic; font-weight: 300; font-size: 84px; line-height: .95; }
+  .t2 { font-style: italic; font-weight: 400; font-size: 34px; color: rgba(251,239,228,.8); line-height: 1.25; max-width: 560px; }
+  .t3 { font-family: 'MR', sans-serif; font-weight: 500; font-size: 17px; letter-spacing: .3em; color: #f3dcb4; text-transform: uppercase; margin-top: 10px; }
+  .dot { position: absolute; border-radius: 50%; background: radial-gradient(circle, rgba(246,214,160,.9), rgba(246,214,160,0) 70%); }
+</style>
+</head>
+<body>
+  <div class="frame"></div><div class="frame2"></div>
+  <div class="wrap">
+    <div class="num">36</div>
+    <div class="text">
+      <div class="t1">Beautiful<br />Questions</div>
+      <div class="t2">A ritual for two. Three sets, thirty-six questions, one evening of letting someone in.</div>
+      <div class="t3">Play together, in real time</div>
+    </div>
+  </div>
+  <script>
+    for (let i = 0; i < 46; i++) {
+      const d = document.createElement('div'); d.className = 'dot';
+      const r = 4 + Math.random() * Math.random() * 22;
+      Object.assign(d.style, { width: r + 'px', height: r + 'px', left: Math.random() * 1200 + 'px', top: Math.random() * 630 + 'px', opacity: .2 + Math.random() * .6 });
+      document.body.appendChild(d);
+    }
+  </script>
+</body>
+</html>

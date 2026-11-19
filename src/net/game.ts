@@ -31,6 +31,8 @@ export interface GameState {
   miniTimerEndsAt: number | null;
   gazeStartedAt: number | null;
   finishedAt: number | null;
+  /** The question index each partner chose as the one that stays with them. */
+  favorites: Pair<number | null>;
 }
 
 export type Action =
@@ -45,6 +47,7 @@ export type Action =
   | { type: 'miniTimer'; seconds: number | null }
   | { type: 'gazeEnd' }
   | { type: 'skipGaze' }
+  | { type: 'favorite'; q: number | null; role?: Role }
   | { type: 'restart' };
 
 export const GAZE_SECONDS = 240;
@@ -76,7 +79,13 @@ export function initialState(code: string, host: Player): GameState {
     miniTimerEndsAt: null,
     gazeStartedAt: null,
     finishedAt: null,
+    favorites: { host: null, guest: null },
   };
+}
+
+/** Fills fields added in later versions so older saved states keep working. */
+export function upgradeState(s: GameState): GameState {
+  return { ...initialState(s.code, s.players.host), ...s, favorites: s.favorites ?? { host: null, guest: null } };
 }
 
 const NOT_READY: Pair<boolean> = { host: false, guest: false };
@@ -142,6 +151,11 @@ export function reduce(s: GameState, a: Action, by: Role, now: number): GameStat
     case 'skipGaze':
       if (s.phase !== 'gaze') return s;
       return bump({ ...s, phase: 'finale', finishedAt: now, ready: { ...NOT_READY } });
+    case 'favorite': {
+      if (s.phase !== 'finale') return s;
+      if (a.q !== null && (a.q < 0 || a.q >= TOTAL || s.skipped.includes(a.q))) return s;
+      return bump({ ...s, favorites: { ...(s.favorites ?? { host: null, guest: null }), [by]: a.q } });
+    }
     case 'restart':
       return bump({
         ...initialState(s.code, s.players.host),

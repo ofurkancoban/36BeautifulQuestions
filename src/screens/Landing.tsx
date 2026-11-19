@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button, Flourish, LetterRise, Monogram, Reveal, ease } from '../components/ui';
 import { HowItWorks, Sheet } from '../components/Sheet';
 import { clientId, loadSaved, makeCode, normalizeCode, type SavedSession } from '../net/session';
+import { cleanName } from '../net/validate';
 
 interface Props {
   onStart: (s: SavedSession) => void;
@@ -10,7 +11,7 @@ interface Props {
   error: string | null;
 }
 
-type View = 'home' | 'create' | 'join';
+type View = 'home' | 'create' | 'join' | 'local';
 
 function rememberedName() {
   try {
@@ -33,6 +34,17 @@ export default function Landing({ onStart, inviteCode, error }: Props) {
   const [name, setName] = useState(rememberedName);
   const [code, setCode] = useState(inviteCode ?? '');
   const [how, setHow] = useState(false);
+  const [partner, setPartner] = useState('');
+  const [online, setOnline] = useState(() => navigator.onLine);
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    window.addEventListener('online', update);
+    window.addEventListener('offline', update);
+    return () => {
+      window.removeEventListener('online', update);
+      window.removeEventListener('offline', update);
+    };
+  }, []);
   const saved = loadSaved();
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -45,7 +57,13 @@ export default function Landing({ onStart, inviteCode, error }: Props) {
     return () => clearTimeout(id);
   }, [view]);
 
-  const trimmed = name.trim();
+  const trimmed = cleanName(name);
+  const partnerTrimmed = cleanName(partner);
+  const playLocal = () => {
+    if (!trimmed || !partnerTrimmed) return;
+    saveName(trimmed);
+    onStart({ code: makeCode(), role: 'host', name: trimmed, partnerName: partnerTrimmed, clientId: clientId(), local: true });
+  };
   const create = () => {
     if (!trimmed) return;
     saveName(trimmed);
@@ -88,10 +106,21 @@ export default function Landing({ onStart, inviteCode, error }: Props) {
                   <p className="error-note">{error}</p>
                 </Reveal>
               )}
+              {!online && (
+                <Reveal delay={0}>
+                  <p className="error-note">You are offline. Playing together on one phone still works.</p>
+                </Reveal>
+              )}
               {saved && (
                 <Reveal delay={1.75}>
                   <Button variant="ghost" className="resume" onClick={() => onStart(saved)}>
-                    Return to your ritual <span className="mono">{saved.code}</span>
+                    {saved.local ? (
+                      <>Return to {saved.name} &amp; {saved.partnerName}</>
+                    ) : (
+                      <>
+                        Return to your ritual <span className="mono">{saved.code}</span>
+                      </>
+                    )}
                   </Button>
                 </Reveal>
               )}
@@ -102,6 +131,11 @@ export default function Landing({ onStart, inviteCode, error }: Props) {
                 <Button variant="ghost" onClick={() => setView('join')}>
                   I have an invitation
                 </Button>
+              </Reveal>
+              <Reveal delay={2}>
+                <button className="link link-strong" onClick={() => setView('local')}>
+                  Or play together on one phone
+                </button>
               </Reveal>
               <Reveal delay={2.05}>
                 <button className="link" onClick={() => setHow(true)}>
@@ -138,6 +172,52 @@ export default function Landing({ onStart, inviteCode, error }: Props) {
               </label>
               <Button type="submit" disabled={!trimmed}>
                 Create an invitation
+              </Button>
+              <button type="button" className="link" onClick={() => setView('home')}>
+                Back
+              </button>
+            </motion.form>
+          )}
+
+          {view === 'local' && (
+            <motion.form
+              key="local"
+              className="panel-stack"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.6, ease }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                playLocal();
+              }}
+            >
+              <p className="muted small center narrow">One phone between you, passed back and forth. No connection needed.</p>
+              <label className="field">
+                <span className="field-label">Your name</span>
+                <input
+                  ref={nameRef}
+                  className="field-input"
+                  value={name}
+                  maxLength={24}
+                  autoComplete="given-name"
+                  placeholder="First person"
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">And theirs</span>
+                <input
+                  className="field-input"
+                  value={partner}
+                  maxLength={24}
+                  autoComplete="off"
+                  placeholder="Second person"
+                  onChange={(e) => setPartner(e.target.value)}
+                />
+              </label>
+              <Button type="submit" disabled={!trimmed || !partnerTrimmed}>
+                Begin on this phone
               </Button>
               <button type="button" className="link" onClick={() => setView('home')}>
                 Back

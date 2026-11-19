@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  html, body { margin: 0; overflow: hidden; background: transparent; }
+  body { width: 100vw; height: 100vh; }
+  .bg { position: absolute; inset: 0; background: radial-gradient(70% 70% at 50% 38%, #6a1a38 0%, #2a0a1a 60%, #120610 100%); }
+  /* "maskable" keeps the heart inside the 80% safe zone */
+  svg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: var(--s, 62%); height: auto; filter: drop-shadow(0 0 4vw rgba(240,170,120,.55)); }
+</style>
+</head>
+<body>
+  <div class="bg"></div>
+  <svg viewBox="0 0 64 64">
+    <defs>
+      <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#fff1d6"/><stop offset=".5" stop-color="#e9be82"/><stop offset="1" stop-color="#c8955a"/>
+      </linearGradient>
+    </defs>
+    <path d="M32 50c-10.5-7.4-17.5-13.5-17.5-21.3 0-5 3.8-8.9 8.6-8.9 3.6 0 6.9 2.2 8.9 5.4 2-3.2 5.3-5.4 8.9-5.4 4.8 0 8.6 3.9 8.6 8.9 0 7.8-7 13.9-17.5 21.3z" fill="none" stroke="url(#gold)" stroke-width="2.2" stroke-linejoin="round"/>
+    <circle cx="32" cy="34" r="27" fill="none" stroke="url(#gold)" stroke-width=".6" opacity=".55"/>
+  </svg>
+  <script>
+    const s = new URLSearchParams(location.search).get('s');
+    if (s) document.documentElement.style.setProperty('--s', s);
+  </script>
+</body>
+</html>

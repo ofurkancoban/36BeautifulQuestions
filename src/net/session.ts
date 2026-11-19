@@ -1,30 +1,33 @@
-import Peer, { type DataConnection } from 'peerjs';
-import { initialState, reduce, type Action, type GameState, type Role } from './game';
+import type Peer from 'peerjs';
+import type { DataConnection } from 'peerjs';
+import { initialState, reduce, upgradeState, type Action, type GameState, type Role } from './game';
+import { cleanName, isGameState, isWire } from './validate';
 
 /**
  * Serverless real-time session over WebRTC.
  * The host's browser owns the authoritative game state; the guest sends actions
  * and renders whatever the host broadcasts. PeerJS's public broker is used only
  * for the initial handshake, after which data flows peer to peer.
+ * The guest also keeps a copy of the latest state, so if the host comes back
+ * without theirs (storage cleared, another browser), the ritual is restored.
  */
 
 const PREFIX = 'b36q-v1-';
 const SESSION_KEY = 'b36q:session';
-const STATE_KEY = (code: string) => `b36q:state:${code}`;
+export const STATE_KEY = (code: string) => `b36q:state:${code}`;
+const MIRROR_KEY = (code: string) => `b36q:mirror:${code}`;
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 const PING_MS = 2500;
 const STALE_MS = 9000;
 
 export type Status = 'connecting' | 'waiting' | 'connected' | 'reconnecting' | 'error';
 
-export type Ephemeral =
-  | { type: 'react'; kind: ReactionKind; id: string }
-  | { type: 'touch'; on: boolean };
-
 export type ReactionKind = 'heart' | 'spark' | 'laugh' | 'tear';
 
+export type Ephemeral = { type: 'react'; kind: ReactionKind; id: string } | { type: 'touch'; on: boolean };
+
 type Wire =
-  | { t: 'hello'; clientId: string; name: string }
+  | { t: 'hello'; clientId: string; name: string; state?: GameState }
   | { t: 'action'; action: Action }
   | { t: 'state'; state: GameState; clock: number }
   | { t: 'event'; ev: Ephemeral }
@@ -39,6 +42,9 @@ export interface SavedSession {
   clientId: string;
   /** Set once a guest has been accepted, so a later reload keeps retrying instead of giving up. */
   joined?: boolean;
+  /** One-phone mode: both people share this device and no network is used. */
+  local?: boolean;
+  partnerName?: string;
 }
 
 export interface Snapshot {
@@ -49,33 +55,39 @@ export interface Snapshot {
   clockOffset: number;
 }
 
-function safeGet(key: string): string | null {
+/** What the UI needs from a session, whether it runs over the network or on one phone. */
+export interface GameSession {
+  readonly kind: 'remote' | 'local';
+  readonly role: Role;
+  readonly code: string;
+  readonly me: { name: string; clientId: string };
+  subscribe(fn: () => void): () => void;
+  getSnapshot(): Snapshot;
+  onEvent(fn: (ev: Ephemeral) => void): () => void;
+  dispatch(action: Action): void;
+  emit(ev: Ephemeral): void;
+  now(): number;
+  destroy(): void;
+  leave(): void;
+}
+
+// ---------- storage helpers ----------
+
+export function safeGet(key: string): string | null {
   try {
     return localStorage.getItem(key);
   } catch {
     return null;
   }
 }
-function safeSet(key: string, value: string | null) {
+
+export function safeSet(key: string, value: string | null) {
   try {
     if (value === null) localStorage.removeItem(key);
     else localStorage.setItem(key, value);
   } catch {
     /* storage unavailable, the session still works in memory */
   }
-}
-
-export function makeCode(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(6));
-  return Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
-}
-
-export function normalizeCode(raw: string): string {
-  return raw.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 6);
-}
-
-export function clientId(): string {
-  return crypto.randomUUID();
 }
 
 // The active session lives in sessionStorage (per tab, survives refresh) so two tabs
@@ -87,6 +99,7 @@ function tabGet(key: string): string | null {
     return null;
   }
 }
+
 function tabSet(key: string, value: string | null) {
   try {
     if (value === null) sessionStorage.removeItem(key);
@@ -96,10 +109,38 @@ function tabSet(key: string, value: string | null) {
   }
 }
 
-function parse(raw: string | null): SavedSession | null {
+export function loadState(key: string): GameState | null {
+  const raw = safeGet(key);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as SavedSession;
+    const parsed: unknown = JSON.parse(raw);
+    return isGameState(parsed) ? upgradeState(parsed) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function makeCode(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(6));
+  return Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join('');
+}
+
+export function normalizeCode(raw: string): string {
+  return raw
+    .toUpperCase()
+    .replace(/[^A-Z]/g, '')
+    .slice(0, 6);
+}
+
+export function clientId(): string {
+  return crypto.randomUUID();
+}
+
+function parseSaved(raw: string | null): SavedSession | null {
+  if (!raw) return null;
+  try {
+    const s = JSON.parse(raw) as SavedSession;
+    return typeof s?.code === 'string' && (s.role === 'host' || s.role === 'guest') ? s : null;
   } catch {
     return null;
   }
@@ -107,17 +148,25 @@ function parse(raw: string | null): SavedSession | null {
 
 /** Session of this tab (used to resume after a refresh). */
 export function loadActive(): SavedSession | null {
-  return parse(tabGet(SESSION_KEY));
+  return parseSaved(tabGet(SESSION_KEY));
 }
 
 /** Most recent session on this device (offered on the landing page). */
 export function loadSaved(): SavedSession | null {
-  return parse(safeGet(SESSION_KEY));
+  return parseSaved(safeGet(SESSION_KEY));
+}
+
+export function rememberSession(saved: SavedSession) {
+  safeSet(SESSION_KEY, JSON.stringify(saved));
+  tabSet(SESSION_KEY, JSON.stringify(saved));
 }
 
 export function clearSaved() {
   const s = loadActive() ?? loadSaved();
-  if (s) safeSet(STATE_KEY(s.code), null);
+  if (s) {
+    safeSet(STATE_KEY(s.code), null);
+    safeSet(MIRROR_KEY(s.code), null);
+  }
   safeSet(SESSION_KEY, null);
   tabSet(SESSION_KEY, null);
 }
@@ -127,21 +176,56 @@ export function inviteLink(code: string): string {
   return `${origin}${pathname}#join=${code}`;
 }
 
-type Listener = () => void;
-type EventListener = (ev: Ephemeral) => void;
+/** Small observable base shared by the network and one-phone sessions. */
+export abstract class SessionBase {
+  protected snapshot: Snapshot;
+  private listeners = new Set<() => void>();
+  protected eventListeners = new Set<(ev: Ephemeral) => void>();
 
-export class Session {
+  constructor(initial: Snapshot) {
+    this.snapshot = initial;
+  }
+
+  subscribe = (fn: () => void) => {
+    this.listeners.add(fn);
+    return () => {
+      this.listeners.delete(fn);
+    };
+  };
+
+  getSnapshot = () => this.snapshot;
+
+  onEvent(fn: (ev: Ephemeral) => void) {
+    this.eventListeners.add(fn);
+    return () => {
+      this.eventListeners.delete(fn);
+    };
+  }
+
+  protected set(patch: Partial<Snapshot>) {
+    this.snapshot = { ...this.snapshot, ...patch };
+    this.listeners.forEach((l) => l());
+  }
+}
+
+let peerModule: Promise<typeof import('peerjs')> | null = null;
+/** PeerJS is loaded on demand, so the landing page and one-phone mode never download it. */
+function loadPeer() {
+  peerModule ??= import('peerjs');
+  return peerModule;
+}
+
+export class Session extends SessionBase implements GameSession {
+  readonly kind = 'remote' as const;
   readonly role: Role;
   readonly code: string;
   readonly me: { name: string; clientId: string };
 
+  private PeerCtor: typeof Peer | null = null;
   private peer: Peer | null = null;
   private conn: DataConnection | null = null;
-  private snapshot: Snapshot;
-  private listeners = new Set<Listener>();
-  private eventListeners = new Set<EventListener>();
   private lastSeen = 0;
-  private everConnected = false;
+  private everConnected: boolean;
   private destroyed = false;
   private timers: number[] = [];
   private retryTimer: number | null = null;
@@ -149,47 +233,30 @@ export class Session {
   private saved: SavedSession;
 
   constructor(saved: SavedSession) {
+    let state: GameState | null = null;
+    if (saved.role === 'host') {
+      state = loadState(STATE_KEY(saved.code)) ?? initialState(saved.code, { name: saved.name, clientId: saved.clientId });
+      state = { ...state, players: { ...state.players, host: { name: saved.name, clientId: saved.clientId } } };
+    }
+    super({ status: 'connecting', error: null, state, partnerOnline: false, clockOffset: 0 });
     this.saved = saved;
     this.everConnected = !!saved.joined;
     this.role = saved.role;
     this.code = saved.code;
     this.me = { name: saved.name, clientId: saved.clientId };
-    safeSet(SESSION_KEY, JSON.stringify(saved));
-    tabSet(SESSION_KEY, JSON.stringify(saved));
-
-    let state: GameState | null = null;
-    if (this.role === 'host') {
-      const raw = safeGet(STATE_KEY(this.code));
-      try {
-        state = raw ? (JSON.parse(raw) as GameState) : null;
-      } catch {
-        state = null;
-      }
-      if (!state) state = initialState(this.code, { name: saved.name, clientId: saved.clientId });
-      state = { ...state, players: { ...state.players, host: { name: saved.name, clientId: saved.clientId } } };
-    }
-    this.snapshot = { status: 'connecting', error: null, state, partnerOnline: false, clockOffset: 0 };
+    rememberSession(saved);
 
     this.timers.push(window.setInterval(() => this.heartbeat(), PING_MS));
     document.addEventListener('visibilitychange', this.onVisible);
-    this.start();
+    loadPeer()
+      .then((m) => {
+        this.PeerCtor = m.default;
+        this.start();
+      })
+      .catch(() => this.set({ status: 'error', error: 'Could not load the connection library. Check your internet connection.' }));
   }
 
   // ---------- public API ----------
-
-  subscribe = (fn: Listener) => {
-    this.listeners.add(fn);
-    return () => this.listeners.delete(fn);
-  };
-
-  getSnapshot = () => this.snapshot;
-
-  onEvent(fn: EventListener) {
-    this.eventListeners.add(fn);
-    return () => {
-      this.eventListeners.delete(fn);
-    };
-  }
 
   dispatch(action: Action) {
     if (this.role === 'host') this.apply(action, 'host');
@@ -227,13 +294,7 @@ export class Session {
 
   private persist(saved: SavedSession) {
     this.saved = saved;
-    safeSet(SESSION_KEY, JSON.stringify(saved));
-    tabSet(SESSION_KEY, JSON.stringify(saved));
-  }
-
-  private set(patch: Partial<Snapshot>) {
-    this.snapshot = { ...this.snapshot, ...patch };
-    this.listeners.forEach((l) => l());
+    rememberSession(saved);
   }
 
   private start() {
@@ -243,7 +304,8 @@ export class Session {
   }
 
   private startHost() {
-    const peer = new Peer(PREFIX + this.code, { debug: 0 });
+    if (this.destroyed || !this.PeerCtor) return;
+    const peer = new this.PeerCtor(PREFIX + this.code, { debug: 0 });
     this.peer = peer;
     peer.on('open', () => {
       this.hostRetries = 0;
@@ -277,6 +339,7 @@ export class Session {
 
   private acceptGuest(conn: DataConnection) {
     conn.on('data', (raw) => {
+      if (!isWire(raw)) return;
       const msg = raw as Wire;
       const state = this.snapshot.state!;
       if (msg.t === 'hello') {
@@ -296,10 +359,26 @@ export class Session {
         this.conn = conn;
         this.everConnected = true;
         this.lastSeen = Date.now();
-        const guest = { name: msg.name.slice(0, 24), clientId: msg.clientId };
-        const next = existing && existing.clientId === guest.clientId && existing.name === guest.name
-          ? state
-          : { ...state, players: { ...state.players, guest }, ready: { host: false, guest: false }, v: state.v + 1 };
+        const guest = { name: cleanName(msg.name), clientId: msg.clientId };
+
+        // The guest's copy wins when ours is older, e.g. after the host lost local storage.
+        let base = state;
+        const mirror = msg.state;
+        const mirrorUsable = !!mirror && mirror.code === this.code && mirror.v > state.v;
+        if (mirror && mirrorUsable && (!existing || existing.clientId === msg.clientId)) {
+          base = upgradeState({ ...mirror, players: { ...mirror.players, host: state.players.host } });
+        }
+
+        const same = base.players.guest?.clientId === guest.clientId && base.players.guest?.name === guest.name;
+        const next =
+          same && base === state
+            ? state
+            : {
+                ...base,
+                players: { ...base.players, guest },
+                ready: same ? base.ready : { host: false, guest: false },
+                v: Math.max(base.v, state.v) + 1,
+              };
         this.commit(next);
         this.set({ status: 'connected', partnerOnline: true });
         return;
@@ -313,7 +392,8 @@ export class Session {
   }
 
   private startGuest() {
-    const peer = new Peer({ debug: 0 });
+    if (this.destroyed || !this.PeerCtor) return;
+    const peer = new this.PeerCtor({ debug: 0 });
     this.peer = peer;
     peer.on('open', () => this.connectToHost());
     peer.on('disconnected', () => {
@@ -360,10 +440,11 @@ export class Session {
       if (this.conn && this.conn !== conn) this.conn.close();
       this.conn = conn;
       this.lastSeen = Date.now();
-      conn.send({ t: 'hello', clientId: this.me.clientId, name: this.me.name } satisfies Wire);
+      const mirror = this.snapshot.state ?? loadState(MIRROR_KEY(this.code)) ?? undefined;
+      conn.send({ t: 'hello', clientId: this.me.clientId, name: this.me.name, state: mirror } satisfies Wire);
     });
     conn.on('data', (raw) => {
-      if (conn !== this.conn) return;
+      if (conn !== this.conn || !isWire(raw)) return;
       this.receive(raw as Wire);
     });
     conn.on('close', () => {
@@ -380,11 +461,15 @@ export class Session {
     if (!this.snapshot.partnerOnline) this.set({ partnerOnline: true, status: 'connected' });
     switch (msg.t) {
       case 'state': {
+        if (this.role !== 'guest') return;
         const cur = this.snapshot.state;
-        if (cur && msg.state.v < cur.v && msg.state.code === cur.code && msg.state.phase !== 'lobby') return;
+        if (msg.state.code !== this.code) return;
+        if (cur && msg.state.v < cur.v && msg.state.phase !== 'lobby') return;
         if (!this.saved.joined) this.persist({ ...this.saved, joined: true });
         this.everConnected = true;
-        this.set({ state: msg.state, clockOffset: msg.clock - Date.now(), status: 'connected', error: null });
+        const state = upgradeState(msg.state);
+        safeSet(MIRROR_KEY(this.code), JSON.stringify(state));
+        this.set({ state, clockOffset: msg.clock - Date.now(), status: 'connected', error: null });
         break;
       }
       case 'action':
@@ -394,6 +479,7 @@ export class Session {
         this.eventListeners.forEach((l) => l(msg.ev));
         break;
       case 'reject':
+        if (this.role !== 'guest') return;
         this.set({ status: 'error', error: 'This ritual already has two people in it.' });
         this.destroy();
         break;
@@ -406,7 +492,8 @@ export class Session {
   private apply(action: Action, by: Role) {
     const cur = this.snapshot.state;
     if (!cur) return;
-    const next = reduce(cur, action, by, Date.now());
+    // The host decides who acted; a role carried inside the action is only meaningful on one phone.
+    const next = reduce(cur, action.type === 'favorite' ? { ...action, role: undefined } : action, by, Date.now());
     if (next !== cur) this.commit(next);
   }
 
