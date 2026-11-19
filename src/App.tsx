@@ -12,6 +12,8 @@ import type { GameState } from './net/game';
 import { LocalSession } from './net/local';
 import { inviteLink, loadActive, normalizeCode, Session, type GameSession, type SavedSession } from './net/session';
 import { useWakeLock } from './lib/wakeLock';
+import { useSeating } from './lib/seating';
+import { askerFor } from './net/game';
 import Finale from './screens/Finale';
 import Landing from './screens/Landing';
 import Lobby from './screens/Lobby';
@@ -130,6 +132,11 @@ function Stage({ onLeave }: { onLeave: () => void }) {
   const [menu, setMenu] = useState(false);
   const [how, setHow] = useState(false);
   useWakeLock(true);
+  const seating = useSeating();
+  // One phone across a table: the first person sits at the phone's bottom edge. While a card is in play
+  // (or about to be drawn), the whole screen turns to face whoever holds it.
+  const canTurn = local && seating === 'across';
+  const turned = canTurn && ['setIntro', 'question', 'interlude'].includes(state.phase) && askerFor(state) === 'guest';
 
   const phaseKey = state.phase === 'question' ? 'question' : `${state.phase}-${Math.floor(state.q / 12)}`;
   const hasPartner = !!state.players.guest;
@@ -162,7 +169,7 @@ function Stage({ onLeave }: { onLeave: () => void }) {
   }
 
   return (
-    <motion.div className={`app-frame phase-${state.phase}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.8 }}>
+    <motion.div className={`app-frame phase-${state.phase} ${canTurn ? 'can-turn' : ''} ${turned ? 'is-turned' : ''}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.8 }}>
       <header className="topbar">
         <div className="brand">
           <Monogram size={30} />

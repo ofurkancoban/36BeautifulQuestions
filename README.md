@@ -20,7 +20,7 @@ The app follows the original procedure:
 ## Features
 
 - Pair with a code, a link or a QR code, then play together in the same room or over a video call
-- **One-phone mode**: pass a single phone back and forth, no connection needed (works offline once installed)
+- **One-phone mode**: pass a single phone back and forth, no connection needed (works offline once installed); sitting across a table, the whole screen turns to face whoever holds the card
 - Live turn indicator, a 3D card flip that both screens see together, answer status for both partners
 - A three second **undo** after "I've answered", for accidental taps
 - Three moods that shift the living background shader: *Dusk*, *Twilight*, *Midnight*

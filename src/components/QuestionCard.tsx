@@ -8,10 +8,6 @@ interface Props {
   canReveal: boolean;
   onReveal: () => void;
   waitingLabel: string;
-  /** Degrees the card is turned on the table: 180 faces the person sitting across. */
-  facing?: number;
-  /** Arrive turned from the previous reader, then spin to face the new one. */
-  spinIn?: boolean;
 }
 
 function sizeClass(text: string) {
@@ -117,7 +113,7 @@ function CardFront({ q }: { q: Question }) {
   );
 }
 
-export default function QuestionCard({ question, revealed, canReveal, onReveal, waitingLabel, facing = 0, spinIn = false }: Props) {
+export default function QuestionCard({ question, revealed, canReveal, onReveal, waitingLabel }: Props) {
   return (
     <motion.div
       className="card-stage"
@@ -126,12 +122,6 @@ export default function QuestionCard({ question, revealed, canReveal, onReveal, 
       exit={{ opacity: 0, y: -90, x: 40, rotate: 7, scale: 0.9, filter: 'blur(4px)' }}
       transition={{ duration: 0.9, ease }}
     >
-      <motion.div
-        className="card-turn"
-        initial={{ rotate: spinIn ? facing - 180 : facing }}
-        animate={{ rotate: facing }}
-        transition={{ duration: 1.2, ease: [0.65, 0, 0.25, 1] }}
-      >
       <motion.button
         type="button"
         className={`card ${canReveal && !revealed ? 'card-tappable' : ''}`}
@@ -145,7 +135,6 @@ export default function QuestionCard({ question, revealed, canReveal, onReveal, 
         <CardBack q={question} />
         <CardFront q={question} />
       </motion.button>
-      </motion.div>
     </motion.div>
   );
 }

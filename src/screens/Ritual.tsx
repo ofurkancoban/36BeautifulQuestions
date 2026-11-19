@@ -8,7 +8,6 @@ import ReadyBar from '../components/ReadyBar';
 import { Button, CheckIcon, Flourish, LetterRise, PenIcon, Reveal, ease } from '../components/ui';
 import { Sheet } from '../components/Sheet';
 import { useNotes } from '../lib/notes';
-import { useSeating } from '../lib/seating';
 import { sfx, vibrate } from '../lib/sound';
 
 // ---------------------------------------------------------------------------
@@ -242,9 +241,6 @@ export function QuestionScreen() {
   const listenerName = state.players[listener]?.name ?? 'Partner';
   const { notes, setNote } = useNotes(state.code);
   const [noteOpen, setNoteOpen] = useState(false);
-  const seating = useSeating();
-  // On one phone across a table, the first person sits at the bottom edge; the card turns to whoever reads it.
-  const facing = local && seating === 'across' && asker === 'guest' ? 180 : 0;
 
   // "I've answered" waits a moment before it is sent, so an accidental tap can be undone.
   const [pending, setPending] = useState<number | null>(null);
@@ -359,8 +355,6 @@ export function QuestionScreen() {
             canReveal={askerIsMe || local}
             onReveal={() => session.dispatch({ type: 'reveal' })}
             waitingLabel={`${askerName} is about to turn the card`}
-            facing={facing}
-            spinIn={local && seating === 'across' && state.q > 0}
           />
         </AnimatePresence>
       </div>

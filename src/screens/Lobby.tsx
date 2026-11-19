@@ -228,7 +228,7 @@ export default function Lobby() {
                   />
                   <span className="setting-note">
                     {seating === 'across'
-                      ? `Lay the phone facing ${state.players.host.name}. On ${guest?.name ?? 'their'}\u2019s turns the card turns around.`
+                      ? `Lay the phone facing ${state.players.host.name}. On ${guest?.name ?? 'their'}\u2019s turns the whole screen turns around.`
                       : 'The card always faces the same way.'}
                   </span>
                 </div>

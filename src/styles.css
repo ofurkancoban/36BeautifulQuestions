@@ -134,6 +134,21 @@ em {
   flex-direction: column;
 }
 
+/* One phone across a table: the whole screen turns to face whoever holds the card. */
+.app-frame.can-turn {
+  transition: transform 1.2s cubic-bezier(0.65, 0, 0.25, 1);
+}
+
+.app-frame.is-turned {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-frame.can-turn {
+    transition: none;
+  }
+}
+
 .app-scroll {
   overflow-y: auto;
   scrollbar-width: none;
@@ -1412,11 +1427,6 @@ em {
   .card-stage {
     --card-w: min(380px, calc(100cqh * 0.714));
   }
-}
-
-.card-turn {
-  width: 100%;
-  transform-style: preserve-3d;
 }
 
 .card {
