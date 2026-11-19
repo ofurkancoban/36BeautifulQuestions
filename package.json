@@ -1,0 +1,28 @@
+{
+  "name": "36-beautiful-questions",
+  "private": true,
+  "version": "1.0.0",
+  "description": "A romantic, real-time ritual for two, based on Aron et al. (1997) 36 questions for interpersonal closeness.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "motion": "^14.14.0",
+    "peerjs": "^1.5.5",
+    "qrcode": "^1.5.4",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.8"
+  }
+}
