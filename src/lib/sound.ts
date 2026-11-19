@@ -112,41 +112,61 @@ export function startAmbient() {
   if (!a || !master || pad) return;
   const out = a.createGain();
   out.gain.setValueAtTime(0, a.currentTime);
-  out.gain.linearRampToValueAtTime(0.05, a.currentTime + 4);
+  out.gain.linearRampToValueAtTime(0.034, a.currentTime + 8);
+  // A slow swell, like breathing, so the pad never sits at one flat level.
+  const breath = a.createGain();
+  breath.gain.value = 0.82;
+  const breathLfo = a.createOscillator();
+  const breathDepth = a.createGain();
+  breathLfo.frequency.value = 0.07;
+  breathDepth.gain.value = 0.18;
+  breathLfo.connect(breathDepth).connect(breath.gain);
+  // A dark, gently moving lowpass keeps the tone round and out of the way.
   const filter = a.createBiquadFilter();
   filter.type = 'lowpass';
-  filter.frequency.value = 900;
-  filter.Q.value = 0.6;
+  filter.frequency.value = 560;
+  filter.Q.value = 0.3;
   const lfo = a.createOscillator();
   const lfoGain = a.createGain();
-  lfo.frequency.value = 0.05;
-  lfoGain.gain.value = 420;
+  lfo.frequency.value = 0.04;
+  lfoGain.gain.value = 140;
   lfo.connect(lfoGain).connect(filter.frequency);
-  filter.connect(out).connect(master);
-  // A warm Dmaj9 voicing, slightly detuned for a slow chorus.
-  const notes = [146.83, 220, 277.18, 329.63, 369.99];
-  const oscs = notes.flatMap((f) =>
-    [-4, 4].map((cents) => {
+  filter.connect(breath).connect(out).connect(master);
+  // A warm Dmaj9 voicing in pure sine tones, slightly detuned for a slow chorus.
+  // Upper notes sit quieter so the chord leans on its low, warm end.
+  const notes: Array<[number, number]> = [
+    [146.83, 1],
+    [220, 0.8],
+    [277.18, 0.55],
+    [329.63, 0.45],
+    [369.99, 0.35],
+  ];
+  const oscs = notes.flatMap(([f, level]) =>
+    [-3, 3].map((cents) => {
       const o = a.createOscillator();
-      o.type = 'triangle';
+      const g = a.createGain();
+      o.type = 'sine';
       o.frequency.value = f;
       o.detune.value = cents;
-      o.connect(filter);
+      g.gain.value = level;
+      o.connect(g).connect(filter);
       o.start();
       return o;
     }),
   );
   lfo.start();
+  breathLfo.start();
   pad = {
     stop() {
       const t = a.currentTime;
       out.gain.cancelScheduledValues(t);
       out.gain.setValueAtTime(out.gain.value, t);
-      out.gain.linearRampToValueAtTime(0, t + 1.5);
+      out.gain.linearRampToValueAtTime(0, t + 2.5);
       setTimeout(() => {
         oscs.forEach((o) => o.stop());
         lfo.stop();
-      }, 1700);
+        breathLfo.stop();
+      }, 2700);
     },
   };
 }
