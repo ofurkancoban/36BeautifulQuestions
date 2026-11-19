@@ -1,6 +1,7 @@
 import { motion } from 'motion/react';
 import { roman, type Question } from '../data/questions';
 import { ease } from './ui';
+import { tap } from '../lib/sound';
 
 interface Props {
   question: Question;
@@ -133,7 +134,11 @@ export default function QuestionCard({ question, revealed, canReveal, onReveal, 
       <motion.button
         type="button"
         className={`card ${canReveal && !revealed ? 'card-tappable' : ''}`}
-        onClick={() => canReveal && !revealed && onReveal()}
+        onClick={() => {
+          if (!canReveal || revealed) return;
+          tap();
+          onReveal();
+        }}
         disabled={!canReveal || revealed}
         aria-label={revealed ? question.text : canReveal ? labels.reveal : waitingLabel}
         animate={{ rotateY: revealed ? 180 : 0 }}

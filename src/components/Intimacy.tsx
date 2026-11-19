@@ -4,7 +4,7 @@ import { useGame } from '../net/context';
 import { useT } from '../i18n';
 import type { ReactionKind } from '../net/session';
 import { setAmbience } from '../lib/ambience';
-import { sfx, vibrate } from '../lib/sound';
+import { iosPressTick, sfx, tap, vibrate } from '../lib/sound';
 import { HeartIcon, LaughIcon, SparkIcon, TearIcon, ease } from './ui';
 
 /**
@@ -175,7 +175,10 @@ export function Dock({
   const btn = (k: ReactionKind) => {
     const Icon = ICONS[k];
     return (
-      <motion.button key={k} className="dock-btn" whileTap={{ scale: 0.8 }} onClick={() => send(k)} aria-label={m.intimacy[k]} title={m.intimacy[k]}>
+      <motion.button key={k} className="dock-btn" whileTap={{ scale: 0.8 }} onClick={() => {
+          tap();
+          send(k);
+        }} aria-label={m.intimacy[k]} title={m.intimacy[k]}>
         <Icon size={19} />
       </motion.button>
     );
@@ -186,6 +189,7 @@ export function Dock({
       {kinds.map(btn)}
       <button
         className={`touch-orb ${myTouch ? 'is-mine' : ''} ${theirTouch ? 'is-theirs' : ''} ${both ? 'is-both' : ''}`}
+        onTouchStart={iosPressTick}
         onPointerDown={(e) => {
           (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
           start();

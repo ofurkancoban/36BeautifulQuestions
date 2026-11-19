@@ -1,3 +1,4 @@
+import { tap } from '../lib/sound';
 import { motion, type HTMLMotionProps } from 'motion/react';
 import type { ReactNode } from 'react';
 
@@ -7,12 +8,17 @@ export function Button({
   variant = 'primary',
   children,
   className = '',
+  onClick,
   ...rest
 }: { variant?: 'primary' | 'ghost' | 'quiet'; children: ReactNode } & HTMLMotionProps<'button'>) {
   return (
     <motion.button
       whileTap={{ scale: 0.97 }}
       className={`btn btn-${variant} ${className}`}
+      onClick={(e) => {
+        tap();
+        onClick?.(e);
+      }}
       {...rest}
     >
       <span className="btn-label">{children}</span>

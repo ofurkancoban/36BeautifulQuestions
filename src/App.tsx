@@ -6,7 +6,7 @@ import { HowItWorks, Sheet } from './components/Sheet';
 import { Button, MenuIcon, Monogram, ease } from './components/ui';
 import { setOf, type Mood } from './data/questions';
 import { setAmbience, useAmbience } from './lib/ambience';
-import { ambientPlaying, setSoundEnabled, soundEnabled, startAmbient, stopAmbient } from './lib/sound';
+import { ambientPlaying, setSoundEnabled, soundEnabled, startAmbient, stopAmbient, tap } from './lib/sound';
 import { SessionContext, useGame, useSession, useSnapshot } from './net/context';
 import type { GameState } from './net/game';
 import { LocalSession } from './net/local';
@@ -266,7 +266,7 @@ function MenuBody({ state, session, onHow, onLeave, close }: { state: GameState;
   };
 
   return (
-    <div className="menu">
+    <div className="menu" onClickCapture={(e) => (e.target as HTMLElement).closest('button') && tap()}>
       <button
         className="menu-row"
         onClick={() => {

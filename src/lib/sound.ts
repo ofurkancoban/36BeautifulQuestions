@@ -177,6 +177,25 @@ function iosTick() {
   hapticLabel.click();
 }
 
+const isIOSHaptics = () => typeof navigator.vibrate !== 'function' && typeof document !== 'undefined' && 'ontouchend' in document;
+
+/**
+ * A light tick for direct taps. iOS only allows haptics inside a real user gesture (a click or touchend),
+ * so call this from the tap handler itself, never from timers or network events.
+ */
+export function tap() {
+  vibrate(10);
+}
+
+/** An extra attempt for press-and-hold on iOS, where pointerdown alone does not count as a gesture. */
+export function iosPressTick() {
+  try {
+    if (isIOSHaptics()) iosTick();
+  } catch {
+    /* haptics unavailable */
+  }
+}
+
 /**
  * Vibrates where the Vibration API exists, and plays haptic ticks on iOS otherwise.
  * A pattern becomes one tick per vibration segment, spaced like the original pattern.
@@ -187,7 +206,7 @@ export function vibrate(pattern: number | number[]) {
       navigator.vibrate(pattern);
       return;
     }
-    if (typeof document === 'undefined' || !('ontouchend' in document)) return;
+    if (!isIOSHaptics()) return;
     const segments = Array.isArray(pattern) ? pattern : [pattern];
     let at = 0;
     segments.forEach((ms, i) => {
