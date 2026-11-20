@@ -20,6 +20,27 @@ const MIRROR_KEY = (code: string) => `b36q:mirror:${code}`;
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 const PING_MS = 2500;
 const STALE_MS = 9000;
+/** A guest keeps looking for the host this long before saying the code is wrong. */
+const FIND_HOST_MS = 60000;
+/** A data channel that has not opened by then is stuck (common on iOS when ICE stalls) and is retried. */
+const OPEN_TIMEOUT_MS = 12000;
+
+/**
+ * Extra ICE servers can be supplied at build time, e.g.
+ * VITE_ICE_SERVERS='[{"urls":"turn:turn.example.com:443?transport=tcp","username":"u","credential":"p"}]'
+ * Two phones on mobile data usually sit behind carrier NAT and only connect through a TURN relay.
+ */
+function peerOptions() {
+  const raw = import.meta.env.VITE_ICE_SERVERS as string | undefined;
+  if (!raw) return { debug: 0 };
+  try {
+    const extra = JSON.parse(raw) as RTCIceServer[];
+    if (!Array.isArray(extra) || extra.length === 0) return { debug: 0 };
+    return { debug: 0, config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, ...extra] } };
+  } catch {
+    return { debug: 0 };
+  }
+}
 
 export type ErrorCode = keyof Messages['errors'];
 
@@ -234,6 +255,7 @@ export class Session extends SessionBase implements GameSession {
   private timers: number[] = [];
   private retryTimer: number | null = null;
   private hostRetries = 0;
+  private findingSince = 0;
   private saved: SavedSession;
 
   constructor(saved: SavedSession) {
@@ -309,7 +331,7 @@ export class Session extends SessionBase implements GameSession {
 
   private startHost() {
     if (this.destroyed || !this.PeerCtor) return;
-    const peer = new this.PeerCtor(PREFIX + this.code, { debug: 0 });
+    const peer = new this.PeerCtor(PREFIX + this.code, peerOptions());
     this.peer = peer;
     peer.on('open', () => {
       this.hostRetries = 0;
@@ -397,7 +419,7 @@ export class Session extends SessionBase implements GameSession {
 
   private startGuest() {
     if (this.destroyed || !this.PeerCtor) return;
-    const peer = new this.PeerCtor({ debug: 0 });
+    const peer = new this.PeerCtor(peerOptions());
     this.peer = peer;
     peer.on('open', () => this.connectToHost());
     peer.on('disconnected', () => {
@@ -410,10 +432,11 @@ export class Session extends SessionBase implements GameSession {
           this.set({ status: 'reconnecting', partnerOnline: false });
           this.scheduleGuestRetry();
         } else {
-          this.set({
-            status: 'error',
-            error: 'notFound',
-          });
+          // On iPhone the host's page is suspended while they share the link from another app,
+          // so the host briefly vanishes from the broker. Keep looking before giving up.
+          this.findingSince ||= Date.now();
+          if (Date.now() - this.findingSince < FIND_HOST_MS) this.scheduleGuestRetry();
+          else this.set({ status: 'error', error: 'notFound' });
         }
       } else if (type === 'network' || type === 'server-error' || type === 'socket-error' || type === 'socket-closed') {
         this.set({ status: 'reconnecting' });
@@ -440,7 +463,17 @@ export class Session extends SessionBase implements GameSession {
   private connectToHost() {
     if (this.destroyed || !this.peer) return;
     const conn = this.peer.connect(PREFIX + this.code, { reliable: true, serialization: 'json' });
+    const openTimer = window.setTimeout(() => {
+      if (conn.open || this.destroyed) return;
+      try {
+        conn.close();
+      } catch {
+        /* ignore */
+      }
+      this.scheduleGuestRetry();
+    }, OPEN_TIMEOUT_MS);
     conn.on('open', () => {
+      clearTimeout(openTimer);
       if (this.conn && this.conn !== conn) this.conn.close();
       this.conn = conn;
       this.lastSeen = Date.now();
@@ -457,7 +490,10 @@ export class Session extends SessionBase implements GameSession {
       this.set({ partnerOnline: false, status: 'reconnecting' });
       this.scheduleGuestRetry();
     });
-    conn.on('error', () => this.scheduleGuestRetry());
+    conn.on('error', () => {
+      clearTimeout(openTimer);
+      this.scheduleGuestRetry();
+    });
   }
 
   private receive(msg: Wire) {
